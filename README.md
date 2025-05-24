@@ -24,6 +24,7 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 ├── agents/               # AI agents
 │   ├── __init__.py
 │   ├── langchain_agents.py
+│   ├── bank_statement_processor.py  # Bank statement upload processor
 │   ├── categorizer.py
 │   ├── clarifier.py
 │   └── recommendations.py
@@ -33,9 +34,10 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 │   ├── charts.py
 │   └── chat_assistant.py
 ├── data/                 # Data storage
+│   └── uploads/          # Storage for uploaded file records
 ├── .streamlit/           # Streamlit configuration
 ├── requirements.txt      # Dependencies
-└── run_app.py            # Application runner script
+└── FinSight.py           # Main application entry point
 ```
 
 ## Setup
@@ -60,11 +62,7 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 
 4. Run the application:
    ```
-   python run_app.py
-   ```
-   or
-   ```
-   streamlit run app/main.py
+   streamlit run FinSight.py
    ```
 
 ## Features
@@ -74,6 +72,20 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 - 🎯 Set and monitor financial goals
 - 🤖 AI-powered insights and recommendations
 - 💬 Chat interface for financial guidance
+- 📂 Bank statement and receipt upload
+  - Upload bank statements and receipts directly
+  - Supports CSV, PDF, JPG, PNG, XLS and XLSX formats
+  - View confirmation of uploaded files
+
+## Bank Statement Upload
+
+The application supports direct upload of financial documents:
+
+1. On the main page, select the "Import" option
+2. Use the file uploader to select your bank statement or receipt files
+3. Click "Process Documents" to upload the files
+4. A success message will confirm your documents have been uploaded
+5. The uploaded files are recorded in `data/uploads/uploads_record.csv`
 
 ## Deployment
 

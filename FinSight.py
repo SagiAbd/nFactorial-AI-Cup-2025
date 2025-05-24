@@ -13,7 +13,7 @@ from app.components.ui_components import (
     render_recent_transactions,
     render_sidebar_summary
 )
-from utils.chat_assistant import render_chat_interface
+from agents.chat_assistant import render_chat_interface
 from agents.langchain_agents import InsightsAgent, GoalProgressAgent
 
 

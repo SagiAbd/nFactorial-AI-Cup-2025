@@ -1,0 +1,83 @@
+{
+    "currencies": [
+      "KZT",
+      "USD",
+      "EUR"
+    ],
+    "expense_categories": [
+      {
+        "name": "Food",
+        "icon": "🍔"
+      },
+      {
+        "name": "Transport",
+        "icon": "🚗"
+      },
+      {
+        "name": "Utilities",
+        "icon": "💡"
+      },
+      {
+        "name": "Shopping",
+        "icon": "🛍️"
+      },
+      {
+        "name": "Entertainment",
+        "icon": "🎮"
+      },
+      {
+        "name": "Health",
+        "icon": "🏥"
+      },
+      {
+        "name": "Education",
+        "icon": "📚"
+      },
+      {
+        "name": "Housing",
+        "icon": "🏠"
+      },
+      {
+        "name": "Other",
+        "icon": "📦"
+      },
+      {
+        "name": "hello",
+        "icon": "s"
+      },
+      {
+        "name": "fgfgf",
+        "icon": "d"
+      }
+    ],
+    "income_categories": [
+      {
+        "name": "Salary",
+        "icon": "💼"
+      },
+      {
+        "name": "Freelance",
+        "icon": "💻"
+      },
+      {
+        "name": "Investment",
+        "icon": "📈"
+      },
+      {
+        "name": "Gift",
+        "icon": "🎁"
+      },
+      {
+        "name": "Bonus",
+        "icon": "🎯"
+      },
+      {
+        "name": "Refund",
+        "icon": "💸"
+      },
+      {
+        "name": "Other",
+        "icon": "💰"
+      }
+    ]
+  }
