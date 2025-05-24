@@ -136,12 +136,12 @@ def load_transactions():
             
             # Handle date column (now without time)
             try:
-                # Convert date strings to datetime objects
-                df['date'] = pd.to_datetime(df['date'], errors='coerce')
+                # Convert date strings to datetime objects with explicit format
+                df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d', errors='coerce')
                 
                 # Check if 'datetime' column exists instead of 'date'
                 if 'date' not in df.columns and 'datetime' in df.columns:
-                    df['date'] = pd.to_datetime(df['datetime'], errors='coerce')
+                    df['date'] = pd.to_datetime(df['datetime'], format='%Y-%m-%d', errors='coerce')
                     df = df.drop('datetime', axis=1)
             except Exception as e:
                 st.warning(f"Warning when processing dates: {e}")

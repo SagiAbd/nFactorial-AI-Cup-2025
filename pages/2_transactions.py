@@ -116,14 +116,14 @@ if not transactions.empty:
     if len(date_range) == 2:
         start_date, end_date = date_range
         filtered_df = filtered_df[
-            (pd.to_datetime(filtered_df["date"]) >= pd.to_datetime(start_date)) & 
-            (pd.to_datetime(filtered_df["date"]) <= pd.to_datetime(end_date))
+            (pd.to_datetime(filtered_df["date"], format='%Y-%m-%d', errors='coerce') >= pd.to_datetime(start_date)) & 
+            (pd.to_datetime(filtered_df["date"], format='%Y-%m-%d', errors='coerce') <= pd.to_datetime(end_date))
         ]
     
     # Display filtered transactions
     if not filtered_df.empty:
         # Format dates for display - Note: dates are now YYYY-MM-DD without time
-        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["date"]).dt.strftime('%Y-%m-%d')
+        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["date"], format='%Y-%m-%d', errors='coerce').dt.strftime('%Y-%m-%d')
         
         # Determine columns to display
         display_df = filtered_df[["formatted_date", "description", "amount", "currency", "type", "category"]]

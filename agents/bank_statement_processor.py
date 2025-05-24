@@ -716,15 +716,12 @@ class BankStatementProcessor:
                     logger.info(f"Unclear date detected: {date_value}")
                 else:
                     try:
-                        # Try to parse the date
-                        parsed_date = pd.to_datetime(date_value).strftime('%Y-%m-%d')
+                        # Format date as YYYY-MM-DD with explicit format
+                        parsed_date = pd.to_datetime(date_value, format='%Y-%m-%d', errors='coerce').strftime('%Y-%m-%d')
                         current_tx['date'] = parsed_date
                     except:
-                        # If date parsing fails, use today as fallback and mark for clarification
-                        logger.warning(f"Failed to parse date: {date_value}")
-                        current_tx['date'] = datetime.now().strftime('%Y-%m-%d')
-                        current_tx['needs_clarification'] = True
-                        needs_clarification = True
+                        # If parsing fails, store original value
+                        current_tx['date'] = str(date_value)
             elif line.startswith('Description:'):
                 desc_value = line.replace('Description:', '').strip()
                 if "[UNCLEAR]" in desc_value:
@@ -842,7 +839,7 @@ class BankStatementProcessor:
         
         # Create standardized DataFrame
         result_df = pd.DataFrame({
-            'date': pd.to_datetime(standardized_df[date_col], errors='coerce'),
+            'date': pd.to_datetime(standardized_df[date_col], format='%Y-%m-%d', errors='coerce'),
             'description': standardized_df[desc_col] if desc_col else 'Unknown Transaction',
             'amount': pd.to_numeric(standardized_df[amount_col], errors='coerce') if amount_col else 0,
         })

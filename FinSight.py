@@ -14,7 +14,6 @@ from app.components.ui_components import (
     render_sidebar_summary
 )
 from agents.chat_assistant import render_chat_interface
-from agents.langchain_agents import InsightsAgent, GoalProgressAgent
 
 
 def reset_form_state():
@@ -35,38 +34,12 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Initialize session state and agents
+    # Initialize session state
     initialize_session_state()
-    
-    # Initialize LangChain agents
-    if "insights_agent" not in st.session_state:
-        st.session_state.insights_agent = InsightsAgent()
-    if "goal_agent" not in st.session_state:
-        st.session_state.goal_agent = GoalProgressAgent()
     
     # Header
     st.title("💰 FinSight AI")
     st.markdown("### Your AI-Powered Financial Assistant")
-    
-    # AI Insights Section
-    with st.expander("🧠 AI Financial Insights", expanded=True):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("📊 Generate Insights", use_container_width=True):
-                with st.spinner("Analyzing your financial data..."):
-                    insights = st.session_state.insights_agent.generate_insights()
-                    st.markdown("### 💡 Key Insights")
-                    st.markdown(insights)
-        
-        with col2:
-            if st.button("🎯 Check Goal Progress", use_container_width=True):
-                with st.spinner("Checking your financial goals..."):
-                    progress = st.session_state.goal_agent.check_progress()
-                    st.markdown("### 🎯 Goal Progress")
-                    st.markdown(progress)
-    
-    st.markdown("---")
     
     # Transaction type selection
     render_transaction_type_selector()
@@ -111,7 +84,7 @@ def main():
     st.markdown("---")
     render_chat_interface()
     
-    # Sidebar summary with AI insights
+    # Sidebar summary
     render_sidebar_summary()
 
 

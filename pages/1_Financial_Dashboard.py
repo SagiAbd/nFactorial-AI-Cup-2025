@@ -75,7 +75,7 @@ else:
     # Data preprocessing
     if not transactions.empty:
         # Ensure date column is properly formatted
-        transactions["date"] = pd.to_datetime(transactions["date"])
+        transactions["date"] = pd.to_datetime(transactions["date"], format='%Y-%m-%d', errors='coerce')
         
         # Filter data based on time period
         time_period = st.sidebar.selectbox(

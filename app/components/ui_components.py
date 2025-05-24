@@ -408,7 +408,7 @@ def render_recent_transactions():
                 col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
                 
                 with col1:
-                    st.write(f"**{pd.to_datetime(tx['date']).strftime('%Y-%m-%d')}**")
+                    st.write(f"**{pd.to_datetime(tx['date'], format='%Y-%m-%d', errors='coerce').strftime('%Y-%m-%d')}**")
                 with col2:
                     st.markdown(f":{amount_color}[{amount_symbol}{tx['amount']:.2f} {tx['currency']}]")
                 with col3:
@@ -428,7 +428,7 @@ def render_recent_transactions():
 def render_sidebar_summary():
     """Render enhanced sidebar with AI-powered financial summary"""
     with st.sidebar:
-        st.header("📊 AI Financial Dashboard")
+        st.header("📊 Financial Dashboard")
         
         # Get comprehensive summary
         summary = get_financial_summary()
@@ -447,9 +447,6 @@ def render_sidebar_summary():
             st.metric("Monthly Income", f"{summary['monthly_income']:.2f}")
             st.metric("Monthly Expenses", f"{summary['monthly_expenses']:.2f}")
             
-            # AI Insights
-            st.subheader("🧠 AI Insights")
-            st.info(f"📈 {summary['recent_trend']}")
             
             # Top spending categories
             if summary['top_categories']:
@@ -457,86 +454,8 @@ def render_sidebar_summary():
                 for category, amount in list(summary['top_categories'].items())[:3]:
                     st.write(f"• **{category}**: {amount:.2f}")
             
-            # Financial Health Score
-            if summary['monthly_expenses'] > 0:
-                # Prevent divide by zero error by checking if monthly_income is greater than zero
-                if summary['monthly_income'] > 0:
-                    savings_rate = (summary['monthly_income'] - summary['monthly_expenses']) / summary['monthly_income'] * 100
-                    if savings_rate > 20:
-                        health_status = "🟢 Excellent"
-                    elif savings_rate > 10:
-                        health_status = "🟡 Good"
-                    elif savings_rate > 0:
-                        health_status = "🟠 Fair"
-                    else:
-                        health_status = "🔴 Needs Attention"
-                    
-                    st.subheader("💊 Financial Health")
-                    st.write(f"**Status**: {health_status}")
-                    st.write(f"**Savings Rate**: {savings_rate:.1f}%")
-                else:
-                    # Handle case when income is zero but expenses exist
-                    st.subheader("💊 Financial Health")
-                    st.write(f"**Status**: 🔴 Needs Attention")
-                    st.write(f"**Note**: No income recorded this month")
-            
-            # Quick actions
-            st.subheader("⚡ Quick Actions")
-            if st.button("🎯 Set Goals", use_container_width=True):
-                st.session_state.show_goals = True
-            if st.button("📊 View Analytics", use_container_width=True):
-                st.session_state.show_analytics = True
-                
         else:
-            st.info("💡 Start adding transactions to see your AI-powered financial insights!")
+            st.info("💡 Start adding transactions to see your financial summaries!")
         
-        # Goals section
-        if hasattr(st.session_state, 'show_goals') and st.session_state.show_goals:
-            render_goals_section()
 
-def render_goals_section():
-    """Render financial goals management section"""
-    st.subheader("🎯 Financial Goals")
-    
-    goals = st.session_state.goals
-    
-    # Monthly budget goal
-    monthly_budget = st.number_input(
-        "Monthly Budget (KZT)", 
-        value=goals.get("monthly_budget", 100000),
-        step=1000
-    )
-    
-    # Savings target
-    savings_target = st.number_input(
-        "Monthly Savings Target (KZT)", 
-        value=goals.get("savings_target", 50000),
-        step=1000
-    )
-    
-    # Category limits
-    st.write("**Category Spending Limits**")
-    category_limits = goals.get("category_limits", {})
-    
-    for category in ["Food", "Transport", "Entertainment", "Shopping"]:
-        limit = st.number_input(
-            f"{category} Limit (KZT)",
-            value=category_limits.get(category, 10000),
-            step=1000,
-            key=f"limit_{category}"
-        )
-        category_limits[category] = limit
-    
-    # Save goals
-    if st.button("💾 Save Goals"):
-        updated_goals = {
-            "monthly_budget": monthly_budget,
-            "savings_target": savings_target,
-            "category_limits": category_limits
-        }
-        st.session_state.goals = updated_goals
-        from core.data_manager import save_goals
-        save_goals(updated_goals)
-        st.success("✅ Goals saved!")
-        st.session_state.show_goals = False
-        st.rerun()
+

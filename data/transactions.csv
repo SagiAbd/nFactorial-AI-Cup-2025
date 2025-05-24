@@ -1,16 +1,16 @@
-date,description,amount,currency,type,category
-2023-11-01 00:00:00,Grocery Store,-120.45,USD,expense,Groceries
-2023-11-03 00:00:00,Electricity Bill,-85.2,USD,expense,Utilities
-2023-11-05 00:00:00,Restaurant Dinner,-65.3,USD,expense,Dining
-2023-11-07 00:00:00,Gas Station,-45.67,USD,expense,Transportation
-2023-11-10 00:00:00,Online Shopping,-95.99,USD,expense,Shopping
-2023-11-15 00:00:00,Salary Deposit,2500.0,USD,income,Income
-2023-11-18 00:00:00,Coffee Shop,-4.25,USD,expense,Dining
-2023-11-20 00:00:00,Pharmacy,-32.5,USD,expense,Health
-2023-11-25 00:00:00,Movie Tickets,-24.0,USD,expense,Entertainment
-2023-11-28 00:00:00,Mobile Phone Bill,-55.0,USD,expense,Utilities
-2025-05-23 00:00:00,Daily,-100.0,KZT,expense,Food
-2025-05-24 00:00:00,,-100.0,KZT,expense,hello
-2025-05-24 00:00:00,,-0.01,KZT,expense,Food
-2025-05-24 00:00:00,PDF Import Placeholder,0.0,KZT,income,Uncategorized
-2025-05-24,Debug test transaction,1000.0,KZT,income,Test
+date,description,amount,currency,type,category,transaction_id
+2023-11-01 00:00:00,Grocery Store,-120.45,USD,expense,Groceries,e6807021-7f3c-4788-8df5-c3eda710d725
+2023-11-03 00:00:00,Electricity Bill,-85.2,USD,expense,Utilities,c94fe395-484c-4105-8fd7-1e5f48673c97
+2023-11-05 00:00:00,Restaurant Dinner,-65.3,USD,expense,Dining,3ad89c3f-ab88-4c09-85b7-7af20ca0ec6b
+2023-11-07 00:00:00,Gas Station,-45.67,USD,expense,Transportation,24616161-823c-4369-baa2-9bd79acd9424
+2023-11-10 00:00:00,Online Shopping,-95.99,USD,expense,Shopping,842f67c4-6abb-4e77-8b4e-bcd06214e7ed
+2023-11-15 00:00:00,Salary Deposit,2500.0,USD,income,Income,05291511-3757-4de3-adad-be0acf8594b5
+2023-11-18 00:00:00,Coffee Shop,-4.25,USD,expense,Dining,635d47c2-58a6-4c9f-9bff-2507d47359e5
+2023-11-20 00:00:00,Pharmacy,-32.5,USD,expense,Health,c6b1b053-0f7c-4352-8772-accd124962d0
+2023-11-25 00:00:00,Movie Tickets,-24.0,USD,expense,Entertainment,44e20172-0547-47b0-be60-a1cc1d39b309
+2023-11-28 00:00:00,Mobile Phone Bill,-55.0,USD,expense,Utilities,a5bdb83f-3383-4dc5-949f-d973268ed4ff
+2025-05-23 00:00:00,Daily,-100.0,KZT,expense,Food,aa1e7c35-06e7-43b7-be50-ba743a52ba12
+2025-05-24 00:00:00,,-100.0,KZT,expense,hello,6a52ac5f-8d39-42c3-bb87-475933605a8d
+2025-05-24 00:00:00,,-0.01,KZT,expense,Food,7cb3d7a0-0973-431b-9f4c-d9693542a01d
+2025-05-24 00:00:00,PDF Import Placeholder,0.0,KZT,income,Uncategorized,9933e84f-77d8-4748-bef9-e9d610754a9b
+2025-05-24,Debug test transaction,1000.0,KZT,income,Test,e5ca052b-cecb-4bd2-a033-b46129fdf45d

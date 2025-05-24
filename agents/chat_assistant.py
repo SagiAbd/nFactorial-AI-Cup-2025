@@ -10,7 +10,11 @@ def render_chat_interface():
     
     # Initialize chat assistant agent
     if "chat_agent" not in st.session_state:
-        st.session_state.chat_agent = ChatAssistantAgent()
+        try:
+            st.session_state.chat_agent = ChatAssistantAgent()
+        except Exception as e:
+            st.error(f"Failed to initialize chat agent: {str(e)}")
+            st.info("The chat interface requires proper API configuration. Please check your OpenAI API key.")
     
     # Initialize messages in session state if not present
     if "messages" not in st.session_state:
@@ -36,13 +40,47 @@ def render_chat_interface():
         # Add user message to chat
         st.session_state.messages.append({"role": "user", "content": user_input})
         
-        # Generate AI response using LangChain agent
-        with st.spinner("Thinking..."):
-            response = st.session_state.chat_agent.generate_response(user_input)
-            
-            # Add assistant response to chat
-            st.session_state.messages.append({"role": "assistant", "content": response})
-            st.rerun()  # Rerun to update the chat display
+        # Show the user message immediately
+        with st.chat_message("user"):
+            st.write(user_input)
+        
+        # Generate response (with memory support)
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    # Check if we have an agent
+                    if "chat_agent" in st.session_state:
+                        # Get financial context if needed
+                        context = {}
+                        try:
+                            transactions = load_transactions()
+                            if not transactions.empty:
+                                # Add minimal context without overloading
+                                context = {
+                                    "total_transactions": len(transactions),
+                                    "has_data": True
+                                }
+                        except:
+                            pass
+                            
+                        response = st.session_state.chat_agent.generate_response(user_input, context)
+                    else:
+                        # Fallback to simple response
+                        response = "I'm a simple financial assistant. Currently in development mode, but I'd be happy to help when fully implemented!"
+                except Exception as e:
+                    response = f"Sorry, I encountered an error: {str(e)}"
+                
+                # Add assistant response to chat and display it
+                st.session_state.messages.append({"role": "assistant", "content": response})
+                st.write(response)
+    
+    # Add a clear chat button
+    col1, col2 = st.columns([4, 1])
+    with col2:
+        if st.button("🗑️ Clear Chat"):
+            # Keep only the welcome message
+            st.session_state.messages = [st.session_state.messages[0]]
+            st.rerun()
     
     # Apply custom CSS for better chat styling
     st.markdown("""
@@ -62,4 +100,4 @@ def render_chat_interface():
         margin-left: auto;
     }
     </style>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
