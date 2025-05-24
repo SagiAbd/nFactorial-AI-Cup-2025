@@ -1,0 +1,10 @@
+{
+  "monthly_budget": 100000,
+  "savings_target": 50000,
+  "category_limits": {
+    "Food": 30000,
+    "Transport": 15000,
+    "Entertainment": 10000,
+    "Shopping": 20000
+  }
+}
