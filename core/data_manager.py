@@ -188,7 +188,13 @@ def load_transactions():
 def save_transaction(transaction_date, amount, category, currency, transaction_type, description=""):
     """Save a new transaction to CSV file"""
     try:
+        print(f"Debug: save_transaction called with {transaction_date}, {amount}, {category}, {currency}, {transaction_type}, {description}")
+        
+        # Ensure data directory exists
+        ensure_data_directory()
+        
         transactions = load_transactions()
+        print(f"Debug: Loaded existing transactions, count: {len(transactions)}")
         
         # Format date as YYYY-MM-DD (without time)
         date_str = transaction_date.strftime('%Y-%m-%d')
@@ -201,13 +207,21 @@ def save_transaction(transaction_date, amount, category, currency, transaction_t
             'type': transaction_type,
             'category': category
         }
+        print(f"Debug: New transaction data: {new_transaction}")
         
         new_df = pd.DataFrame([new_transaction])
         transactions = pd.concat([transactions, new_df], ignore_index=True)
+        print(f"Debug: Concatenated transactions, new count: {len(transactions)}")
+        
+        # Save to file
         transactions.to_csv(TRANSACTIONS_FILE, index=False)
+        print(f"Debug: Saved transactions to {TRANSACTIONS_FILE}")
+        
         return True
     except Exception as e:
-        st.error(f"Error saving transaction: {e}")
+        print(f"Debug ERROR: Error saving transaction: {e}")
+        if hasattr(st, 'error'):
+            st.error(f"Error saving transaction: {e}")
         return False
 
 

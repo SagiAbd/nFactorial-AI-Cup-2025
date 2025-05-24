@@ -36,6 +36,18 @@
     {
       "name": "Housing",
       "icon": "🏠"
+    },
+    {
+      "name": "Other",
+      "icon": "📦"
+    },
+    {
+      "name": "hello",
+      "icon": "s"
+    },
+    {
+      "name": "fgfgf",
+      "icon": "d"
     }
   ],
   "income_categories": [
@@ -62,6 +74,10 @@
     {
       "name": "Refund",
       "icon": "💸"
+    },
+    {
+      "name": "Other",
+      "icon": "💰"
     }
   ]
 }

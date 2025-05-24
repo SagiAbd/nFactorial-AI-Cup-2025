@@ -207,7 +207,23 @@ def render_transaction_type_selector():
                                 # Save button
                                 if st.button("💾 Save All Transactions to data/transactions.csv", type="primary"):
                                     with st.spinner("Saving transactions..."):
+                                        st.write(f"Debug: About to save {len(transactions_df)} transactions")
+                                        print(f"Debug UI: About to save {len(transactions_df)} transactions")
+                                        
+                                        # Check the dataframe structure
+                                        st.write("Debug: DataFrame structure")
+                                        st.write(transactions_df.dtypes)
+                                        print("Debug UI: DataFrame structure")
+                                        print(transactions_df.dtypes)
+                                        
+                                        # Check for any missing values
+                                        if transactions_df.isnull().any().any():
+                                            st.warning("Debug: DataFrame contains NULL values")
+                                            print("Debug UI: DataFrame contains NULL values")
+                                            print(transactions_df[transactions_df.isnull().any(axis=1)])
+                                        
                                         success_count, error_count = processor.save_processed_transactions(transactions_df)
+                                        print(f"Debug UI: Saving complete. Success: {success_count}, Errors: {error_count}")
                                         
                                         if success_count > 0:
                                             st.success(f"✅ Successfully saved {success_count} transactions to data/transactions.csv!")
@@ -218,7 +234,16 @@ def render_transaction_type_selector():
                                             st.session_state.import_mode = False
                                             st.rerun()
                                         else:
-                                            st.error("❌ Failed to save any transactions.")
+                                            st.error(f"❌ Failed to save any transactions. Error count: {error_count}")
+                                            # Check if the file exists and is writable
+                                            if os.path.exists("data/transactions.csv"):
+                                                st.write("Debug: transactions.csv exists")
+                                                if os.access("data/transactions.csv", os.W_OK):
+                                                    st.write("Debug: transactions.csv is writable")
+                                                else:
+                                                    st.error("Debug: transactions.csv is NOT writable")
+                                            else:
+                                                st.error("Debug: transactions.csv does NOT exist")
                     else:
                         st.error("❌ Failed to process the uploaded documents. Please check the file format.")
 
