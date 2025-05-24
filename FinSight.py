@@ -81,7 +81,7 @@ def main():
         if transaction_data:
             success = save_transaction(**transaction_data)
             if success:
-                st.success(f"✅ {transaction_data['transaction_type'].title()} saved successfully!")
+                st.success(f"✅ {transaction_data['transaction_type'].title()} saved successfully to data/transactions.csv!")
                 # Trigger AI analysis for new transaction
                 if transaction_data['transaction_type'] == 'expense':
                     goal_warning = st.session_state.goal_agent.check_spending_warning(

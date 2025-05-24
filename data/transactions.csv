@@ -1,14 +1,15 @@
-date,description,amount,category,currency,type
-2023-11-01,Grocery Store,-120.45,Groceries,USD,expense
-2023-11-03,Electricity Bill,-85.2,Utilities,USD,expense
-2023-11-05,Restaurant Dinner,-65.3,Dining,USD,expense
-2023-11-07,Gas Station,-45.67,Transportation,USD,expense
-2023-11-10,Online Shopping,-95.99,Shopping,USD,expense
-2023-11-15,Salary Deposit,2500.0,Income,USD,income
-2023-11-18,Coffee Shop,-4.25,Dining,USD,expense
-2023-11-20,Pharmacy,-32.5,Health,USD,expense
-2023-11-25,Movie Tickets,-24.0,Entertainment,USD,expense
-2023-11-28,Mobile Phone Bill,-55.0,Utilities,USD,expense
-2025-05-23,Daily,-100.0,Food,KZT,expense
-2025-05-24,,-100.0,hello,KZT,expense
-2025-05-24,,-0.01,Food,KZT,expense
+date,description,amount,currency,type,category
+2023-11-01,Grocery Store,-120.45,USD,expense,Groceries
+2023-11-03,Electricity Bill,-85.2,USD,expense,Utilities
+2023-11-05,Restaurant Dinner,-65.3,USD,expense,Dining
+2023-11-07,Gas Station,-45.67,USD,expense,Transportation
+2023-11-10,Online Shopping,-95.99,USD,expense,Shopping
+2023-11-15,Salary Deposit,2500.0,USD,income,Income
+2023-11-18,Coffee Shop,-4.25,USD,expense,Dining
+2023-11-20,Pharmacy,-32.5,USD,expense,Health
+2023-11-25,Movie Tickets,-24.0,USD,expense,Entertainment
+2023-11-28,Mobile Phone Bill,-55.0,USD,expense,Utilities
+2025-05-23,Daily,-100.0,KZT,expense,Food
+2025-05-24,,-100.0,KZT,expense,hello
+2025-05-24,,-0.01,KZT,expense,Food
+2025-05-24,PDF Import Placeholder,0.0,KZT,income,Uncategorized

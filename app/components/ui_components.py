@@ -1,28 +1,31 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 import sys
 import os
+from streamlit_extras.mandatory_date_range import date_range_picker
 
-# Add the project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# Add parent directory to path to enable imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from core.data_manager import (
-    load_transactions, 
-    get_financial_summary, 
-    get_category_spending,
-    get_monthly_comparison,
-    add_category
+    load_transactions, save_transaction, load_config, 
+    get_financial_summary, get_category_spending, add_category
 )
 from utils.budget_math import calculate_budget_progress
 from utils.charts import create_spending_trend_chart, create_category_distribution
+from agents.bank_statement_processor import BankStatementProcessor
 
 
 def render_transaction_type_selector():
-    """Render transaction type selection buttons"""
+    """Render the transaction type selector with buttons"""
     st.write("**Choose Transaction Type or Import**")
+    
+    # Initialize import mode in session state if not present
+    if "import_mode" not in st.session_state:
+        st.session_state.import_mode = False
     
     col1, col2, col3 = st.columns(3)
     
@@ -37,6 +40,7 @@ def render_transaction_type_selector():
             st.session_state.selected_type = "expense"
             st.session_state.selected_currency = None
             st.session_state.selected_category = None
+            st.session_state.import_mode = False
             st.rerun()
     
     with col2:
@@ -50,18 +54,173 @@ def render_transaction_type_selector():
             st.session_state.selected_type = "income"
             st.session_state.selected_currency = None
             st.session_state.selected_category = None
+            st.session_state.import_mode = False
             st.rerun()
     
     with col3:
-        uploaded_file = st.file_uploader(
-            "📁 Import Bank Statement",
-            type=["csv", "xlsx", "pdf"],
-            help="Upload your bank statement",
-            label_visibility="collapsed"
+        upload_button = st.button(
+            "📁 Import",
+            use_container_width=True,
+            type="secondary",
+            disabled=st.session_state.import_mode
         )
+        if upload_button:
+            st.session_state.import_mode = True
+            st.session_state.selected_type = None
+            st.rerun()
+    
+    # Display the file uploader when in import mode
+    if st.session_state.import_mode:
+        # Initialize processing options in session state if not present
+        if "processing_options" not in st.session_state:
+            st.session_state.processing_options = {
+                "ask_clarification": True,
+                "allow_new_categories": True,
+                "date_range": "1 month"
+            }
+        
+        uploaded_file = st.file_uploader(
+            "Upload your bank statement or receipt images",
+            type=["csv", "xlsx", "pdf", "jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key="financial_document_uploader"
+        )
+        
+        # Add processing options with checkboxes
+        st.write("**Processing Options**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.session_state.processing_options["ask_clarification"] = st.checkbox(
+                "Ask for clarification on unclear transactions",
+                value=True,
+                help="The AI will ask questions about transactions it can't confidently categorize"
+            )
+            
+            st.session_state.processing_options["allow_new_categories"] = st.checkbox(
+                "Allow creating new categories",
+                value=True,
+                help="Automatically create new categories for transactions that don't fit existing ones"
+            )
+            
+            # Add auto-save option
+            st.session_state.processing_options["auto_save"] = st.checkbox(
+                "Auto-save transactions",
+                value=False,
+                help="Automatically save transactions to data/transactions.csv without preview"
+            )
+        
+        with col2:
+            date_range_options = {
+                "1 week": "Last week",
+                "2 weeks": "Last 2 weeks",
+                "1 month": "Last month",
+                "3 months": "Last 3 months", 
+                "6 months": "Last 6 months",
+                "all": "All dates",
+                "custom": "Custom range"
+            }
+            
+            st.session_state.processing_options["date_range"] = st.selectbox(
+                "Parse time range",
+                options=list(date_range_options.keys()),
+                format_func=lambda x: date_range_options[x],
+                index=list(date_range_options.keys()).index("1 month"),
+                help="Only process transactions within this time period"
+            )
+            
+            # Show date range picker when "Custom range" is selected
+            if st.session_state.processing_options["date_range"] == "custom":
+                # Default start date is 1 month ago
+                default_start = datetime.now() - timedelta(days=30)
+                # Default end date is today
+                default_end = datetime.now()
+                
+                # Use the date_range_picker component
+                start_date, end_date = date_range_picker(
+                    "Select custom date range",
+                    default_start=default_start,
+                    default_end=default_end,
+                    max_date=datetime.now(),
+                    min_date=datetime.now() - timedelta(days=365*2),  # Up to 2 years ago
+                    format="YYYY-MM-DD"
+                )
+                
+                # Store the selected dates in processing options
+                st.session_state.processing_options["custom_start_date"] = start_date
+                st.session_state.processing_options["custom_end_date"] = end_date
+                
+                # Show selected range as text
+                days_selected = (end_date - start_date).days
+                st.caption(f"Selected range: {days_selected} days ({start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')})")
+        
+        # Add divider
+        st.markdown("---")
+        
+        # Add a cancel button to exit import mode
+        cancel_col, process_col = st.columns([1, 1])
+        with cancel_col:
+            if st.button("Cancel Import", type="secondary", use_container_width=True):
+                st.session_state.import_mode = False
+                st.rerun()
+        
         if uploaded_file:
-            st.success(f"📁 {uploaded_file.name}")
-            st.info("🚧 AI processing feature coming soon!")
+            with process_col:
+                process_button = st.button("Process Documents", type="primary", use_container_width=True)
+                
+            if process_button:
+                with st.spinner("Processing your documents..."):
+                    # Initialize the bank statement processor
+                    processor = BankStatementProcessor()
+                    
+                    # Pass processing options to the processor
+                    processor.set_processing_options(st.session_state.processing_options)
+                    
+                    # Process the uploaded files
+                    transactions_df = processor.process_files(uploaded_file)
+                    
+                    if transactions_df is not None and not transactions_df.empty:
+                        # Show a preview of the processed transactions
+                        st.success(f"📁 Successfully processed {len(uploaded_file)} document(s)")
+                        
+                        # Check if auto-save is enabled
+                        if st.session_state.processing_options.get("auto_save", False):
+                            with st.spinner("Auto-saving transactions..."):
+                                success_count, error_count = processor.save_processed_transactions(transactions_df)
+                                
+                                if success_count > 0:
+                                    st.success(f"✅ Automatically saved {success_count} transactions to data/transactions.csv!")
+                                    if error_count > 0:
+                                        st.warning(f"⚠️ Failed to save {error_count} transactions.")
+                                    
+                                    # Exit import mode
+                                    st.session_state.import_mode = False
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to save any transactions.")
+                        else:
+                            # Display a preview of the processed transactions
+                            with st.expander("Preview Processed Transactions", expanded=True):
+                                st.dataframe(transactions_df)
+                                
+                                # Save button
+                                if st.button("💾 Save All Transactions to data/transactions.csv", type="primary"):
+                                    with st.spinner("Saving transactions..."):
+                                        success_count, error_count = processor.save_processed_transactions(transactions_df)
+                                        
+                                        if success_count > 0:
+                                            st.success(f"✅ Successfully saved {success_count} transactions to data/transactions.csv!")
+                                            if error_count > 0:
+                                                st.warning(f"⚠️ Failed to save {error_count} transactions.")
+                                            
+                                            # Exit import mode
+                                            st.session_state.import_mode = False
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Failed to save any transactions.")
+                    else:
+                        st.error("❌ Failed to process the uploaded documents. Please check the file format.")
 
 def render_currency_selector():
     """Render currency selection using button selector style"""
@@ -164,24 +323,8 @@ def render_transaction_form(transaction_type):
         label_visibility="collapsed"
     )
     
-    # Determine time based on selected date
-    current_date = date.today()
-    current_time = datetime.now().time()
-    
-    # If user selects today's date, use current time
-    # Otherwise, use noon (12:00) as default time
-    if transaction_date == current_date:
-        transaction_time = current_time
-    else:
-        # Default time for non-current dates (noon - 12:00)
-        transaction_time = time(12, 0, 0)
-    
-    # Show the selected time (read-only info)
-    time_str = transaction_time.strftime("%H:%M:%S")
-    st.caption(f"Time: {time_str}")
-    
-    # Combine date and time into a datetime object
-    transaction_date_time = datetime.combine(transaction_date, transaction_time)
+    # Convert date to datetime for consistency with existing code
+    transaction_date_time = datetime.combine(transaction_date, time(0, 0, 0))
     
     # Category selection
     render_category_selector(transaction_type)
@@ -237,17 +380,19 @@ def render_recent_transactions():
                 amount_symbol = "+" if tx['amount'] > 0 else ""
                 
                 # Create columns for better layout
-                col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
+                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
                 
                 with col1:
-                    st.write(f"**{tx['date'].strftime('%Y-%m-%d %H:%M')}**")
+                    st.write(f"**{pd.to_datetime(tx['date']).strftime('%Y-%m-%d')}**")
                 with col2:
-                    st.write(f"📂 {tx['category']}")
-                with col3:
                     st.markdown(f":{amount_color}[{amount_symbol}{tx['amount']:.2f} {tx['currency']}]")
+                with col3:
+                    st.write(f"🏷️ {tx['type'].title()}")
                 with col4:
+                    st.write(f"📂 {tx['category']}")
+                with col5:
                     desc = tx['description'] if pd.notna(tx['description']) and tx['description'] else 'No description'
-                    st.write(f"📝 {desc[:30]}{'...' if len(str(desc)) > 30 else ''}")
+                    st.write(f"📝 {desc[:20]}{'...' if len(str(desc)) > 20 else ''}")
                 
                 st.markdown("---")
         else:
@@ -289,19 +434,26 @@ def render_sidebar_summary():
             
             # Financial Health Score
             if summary['monthly_expenses'] > 0:
-                savings_rate = (summary['monthly_income'] - summary['monthly_expenses']) / summary['monthly_income'] * 100
-                if savings_rate > 20:
-                    health_status = "🟢 Excellent"
-                elif savings_rate > 10:
-                    health_status = "🟡 Good"
-                elif savings_rate > 0:
-                    health_status = "🟠 Fair"
+                # Prevent divide by zero error by checking if monthly_income is greater than zero
+                if summary['monthly_income'] > 0:
+                    savings_rate = (summary['monthly_income'] - summary['monthly_expenses']) / summary['monthly_income'] * 100
+                    if savings_rate > 20:
+                        health_status = "🟢 Excellent"
+                    elif savings_rate > 10:
+                        health_status = "🟡 Good"
+                    elif savings_rate > 0:
+                        health_status = "🟠 Fair"
+                    else:
+                        health_status = "🔴 Needs Attention"
+                    
+                    st.subheader("💊 Financial Health")
+                    st.write(f"**Status**: {health_status}")
+                    st.write(f"**Savings Rate**: {savings_rate:.1f}%")
                 else:
-                    health_status = "🔴 Needs Attention"
-                
-                st.subheader("💊 Financial Health")
-                st.write(f"**Status**: {health_status}")
-                st.write(f"**Savings Rate**: {savings_rate:.1f}%")
+                    # Handle case when income is zero but expenses exist
+                    st.subheader("💊 Financial Health")
+                    st.write(f"**Status**: 🔴 Needs Attention")
+                    st.write(f"**Note**: No income recorded this month")
             
             # Quick actions
             st.subheader("⚡ Quick Actions")

@@ -133,23 +133,56 @@ def load_transactions():
     try:
         if os.path.exists(TRANSACTIONS_FILE):
             df = pd.read_csv(TRANSACTIONS_FILE)
-            # Ensure date column is datetime with flexible parsing
-            # Check if we need to handle legacy 'datetime' column name
-            if 'datetime' in df.columns and 'date' not in df.columns:
-                df['date'] = pd.to_datetime(df['datetime'], errors='coerce')
-                df = df.drop('datetime', axis=1)
-            else:
+            
+            # Handle date column (now without time)
+            try:
+                # Convert date strings to datetime objects
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
+                
+                # Check if 'datetime' column exists instead of 'date'
+                if 'date' not in df.columns and 'datetime' in df.columns:
+                    df['date'] = pd.to_datetime(df['datetime'], errors='coerce')
+                    df = df.drop('datetime', axis=1)
+            except Exception as e:
+                st.warning(f"Warning when processing dates: {e}")
+            
             # Drop any rows with invalid dates
             df = df.dropna(subset=['date'])
+            
+            # Check column order
+            current_columns = list(df.columns)
+            expected_columns = ['date', 'description', 'amount', 'currency', 'type', 'category']
+            
+            # Ensure all required columns exist
+            for col in expected_columns:
+                if col not in current_columns:
+                    if col == 'type':
+                        df[col] = df.apply(lambda row: 'income' if row['amount'] > 0 else 'expense', axis=1)
+                    elif col == 'category':
+                        df[col] = 'Uncategorized'
+                    elif col == 'description':
+                        df[col] = ''
+                    elif col == 'currency':
+                        df[col] = 'KZT'  # Default currency
+            
+            # Reorder columns if needed
+            if current_columns != expected_columns:
+                # Use only columns that exist in the DataFrame
+                ordered_columns = [col for col in expected_columns if col in df.columns]
+                df = df[ordered_columns]
+                
+                # Save with the new column order (if needed)
+                # df.to_csv(TRANSACTIONS_FILE, index=False)
+            
             return df
         else:
-            df = pd.DataFrame(columns=['date', 'description', 'amount', 'category', 'currency', 'type'])
+            # Create empty dataframe with the correct column order
+            df = pd.DataFrame(columns=['date', 'description', 'amount', 'currency', 'type', 'category'])
             df.to_csv(TRANSACTIONS_FILE, index=False)
             return df
     except Exception as e:
         st.error(f"Error loading transactions: {e}")
-        return pd.DataFrame(columns=['date', 'description', 'amount', 'category', 'currency', 'type'])
+        return pd.DataFrame(columns=['date', 'description', 'amount', 'currency', 'type', 'category'])
 
 
 def save_transaction(transaction_date, amount, category, currency, transaction_type, description=""):
@@ -157,13 +190,16 @@ def save_transaction(transaction_date, amount, category, currency, transaction_t
     try:
         transactions = load_transactions()
         
+        # Format date as YYYY-MM-DD (without time)
+        date_str = transaction_date.strftime('%Y-%m-%d')
+        
         new_transaction = {
-            'date': transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+            'date': date_str,
             'description': description,
             'amount': amount if transaction_type == 'income' else -abs(amount),
-            'category': category,
             'currency': currency,
-            'type': transaction_type
+            'type': transaction_type,
+            'category': category
         }
         
         new_df = pd.DataFrame([new_transaction])

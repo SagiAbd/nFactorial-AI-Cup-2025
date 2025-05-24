@@ -45,7 +45,7 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         
         # Check if the file has the required columns
-        required_columns = ["date", "amount", "currency", "category", "type"]
+        required_columns = ["date", "amount", "currency", "type", "category"]
         # Handle legacy files with 'datetime' column
         if "datetime" in df.columns and "date" not in df.columns:
             df["date"] = df["datetime"]
@@ -60,6 +60,9 @@ if uploaded_file is not None:
             # Add description column if not exists
             if "description" not in df.columns:
                 df["description"] = ""
+                
+            # Ensure proper column order
+            df = df[['date', 'description', 'amount', 'type', 'category', 'currency']]
                 
             # Save the transactions
             if not os.path.exists(DATA_DIR):
@@ -119,14 +122,14 @@ if not transactions.empty:
     
     # Display filtered transactions
     if not filtered_df.empty:
-        # Format dates for display
-        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["date"]).dt.strftime('%Y-%m-%d %H:%M')
+        # Format dates for display - Note: dates are now YYYY-MM-DD without time
+        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["date"]).dt.strftime('%Y-%m-%d')
         
         # Determine columns to display
-        display_df = filtered_df[["formatted_date", "type", "category", "amount", "currency", "description"]]
+        display_df = filtered_df[["formatted_date", "description", "amount", "currency", "type", "category"]]
         
         # Set column names and reorder
-        display_df.columns = ["Date & Time", "Type", "Category", "Amount", "Currency", "Description"]
+        display_df.columns = ["Date", "Description", "Amount", "Currency", "Type", "Category"]
         
         # Style the dataframe
         st.dataframe(
@@ -158,19 +161,17 @@ with st.expander("CSV Upload Format Instructions"):
     
     Your CSV file should include the following columns:
     
-    - `date` - Transaction date and time (YYYY-MM-DD HH:MM:SS format)
+    - `date` - Transaction date (YYYY-MM-DD format)
+    - `description` - Transaction description or notes
     - `amount` - Transaction amount (positive for income, negative for expenses)
     - `currency` - Currency code (e.g., KZT, USD)
-    - `category` - Transaction category
     - `type` - Transaction type ('income' or 'expense')
-    
-    Optional columns:
-    - `description` - Transaction description or notes
+    - `category` - Transaction category
     
     #### Sample CSV Format:
     ```
-    date,amount,currency,category,type,description
-    2023-05-01 14:30:00,50000,KZT,Salary,income,Monthly salary
-    2023-05-02 12:15:00,-2500,KZT,Food,expense,Lunch
+    date,description,amount,currency,type,category
+    2023-05-01,Monthly salary,50000,KZT,income,Salary
+    2023-05-02,Lunch,-2500,KZT,expense,Food
     ```
     """)
