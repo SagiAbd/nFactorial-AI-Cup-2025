@@ -8,11 +8,16 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 /
 ├── app/                  # Main application code
 │   ├── __init__.py
-│   ├── main.py           # Main application logic
-│   ├── pages/            # Additional Streamlit pages
+│   ├── main.py           # Main application entry point
 │   └── components/       # UI components
 │       ├── __init__.py
 │       └── ui_components.py
+├── pages/                # Streamlit pages (multi-page app)
+│   ├── 1_Financial_Dashboard.py
+│   ├── 2_Transactions.py
+│   ├── 3_Budget_Planning.py
+│   ├── 4_Analytics.py
+│   └── 5_New_Transaction.py
 ├── core/                 # Core business logic
 │   ├── __init__.py
 │   └── data_manager.py   # Data handling and storage
@@ -30,7 +35,7 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 ├── data/                 # Data storage
 ├── .streamlit/           # Streamlit configuration
 ├── requirements.txt      # Dependencies
-└── streamlit_app.py      # Entry point
+└── run_app.py            # Application runner script
 ```
 
 ## Setup
@@ -55,7 +60,11 @@ An AI-powered personal finance tracker with LangChain integration for insights a
 
 4. Run the application:
    ```
-   streamlit run streamlit_app.py
+   python run_app.py
+   ```
+   or
+   ```
+   streamlit run app/main.py
    ```
 
 ## Features

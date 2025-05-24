@@ -27,7 +27,7 @@ def load_transactions():
         return pd.read_csv(TRANSACTIONS_FILE)
     else:
         return pd.DataFrame({
-            "date": [],
+            "datetime": [],
             "amount": [],
             "currency": [],
             "category": [],
@@ -45,7 +45,13 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         
         # Check if the file has the required columns
-        required_columns = ["date", "amount", "currency", "category", "type"]
+        required_columns = ["datetime", "amount", "currency", "category", "type"]
+        # Handle legacy files with 'date' column
+        if "date" in df.columns and "datetime" not in df.columns:
+            df["datetime"] = df["date"]
+            df = df.drop("date", axis=1)
+            required_columns = ["datetime" if col == "date" else col for col in required_columns]
+            
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -107,73 +113,64 @@ if not transactions.empty:
     if len(date_range) == 2:
         start_date, end_date = date_range
         filtered_df = filtered_df[
-            (pd.to_datetime(filtered_df["date"]) >= pd.to_datetime(start_date)) & 
-            (pd.to_datetime(filtered_df["date"]) <= pd.to_datetime(end_date))
+            (pd.to_datetime(filtered_df["datetime"]) >= pd.to_datetime(start_date)) & 
+            (pd.to_datetime(filtered_df["datetime"]) <= pd.to_datetime(end_date))
         ]
     
-    # Display transactions with colored amounts based on type
+    # Display filtered transactions
     if not filtered_df.empty:
-        # Format the display
-        display_df = filtered_df.copy()
+        # Format dates for display
+        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["datetime"]).dt.strftime('%Y-%m-%d %H:%M')
         
-        # Format amount with currency and color
-        def format_amount(row):
-            amount = row["amount"]
-            currency = row["currency"]
-            transaction_type = row["type"]
-            
-            if transaction_type == "expense":
-                return f"<span style='color:red'>-{currency} {abs(float(amount)):.2f}</span>"
-            else:  # income
-                return f"<span style='color:green'>+{currency} {abs(float(amount)):.2f}</span>"
+        # Determine columns to display
+        display_df = filtered_df[["formatted_date", "type", "category", "amount", "currency", "description"]]
         
-        display_df["formatted_amount"] = display_df.apply(format_amount, axis=1)
+        # Set column names and reorder
+        display_df.columns = ["Date & Time", "Type", "Category", "Amount", "Currency", "Description"]
         
-        # Reorder and select columns for display
-        cols_to_display = ["date", "formatted_amount", "category", "description", "type"]
-        display_df = display_df[cols_to_display]
+        # Style the dataframe
+        st.dataframe(
+            display_df.style.applymap(
+                lambda x: "color: green" if x == "income" else "color: red", 
+                subset=["Type"]
+            ),
+            use_container_width=True
+        )
         
-        # Rename columns for display
-        display_df = display_df.rename(columns={
-            "date": "Date",
-            "formatted_amount": "Amount",
-            "category": "Category",
-            "description": "Description",
-            "type": "Type"
-        })
-        
-        # Display with HTML formatting
-        st.write(display_df.to_html(escape=False), unsafe_allow_html=True)
-        
-        # Summary statistics
-        st.markdown("### Summary")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            total_income = filtered_df[filtered_df["type"] == "income"]["amount"].sum()
-            st.metric("Total Income", f"{filtered_df['currency'].iloc[0]} {total_income:.2f}")
-        
-        with col2:
-            total_expense = filtered_df[filtered_df["type"] == "expense"]["amount"].sum()
-            st.metric("Total Expenses", f"{filtered_df['currency'].iloc[0]} {total_expense:.2f}")
-        
-        # Net balance
-        st.metric("Net Balance", f"{filtered_df['currency'].iloc[0]} {(total_income - total_expense):.2f}")
+        # Add download button
+        csv = filtered_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "Download Filtered Data", 
+            csv, 
+            "transactions_export.csv", 
+            "text/csv", 
+            key="download-csv"
+        )
     else:
-        st.info("No transactions match the selected filters.")
+        st.info("No transactions match your filter criteria.")
 else:
-    # Show sample data if no transactions exist
-    st.markdown("### Sample Transactions")
-    sample_transactions = pd.DataFrame({
-        "date": ["2023-11-01", "2023-11-03", "2023-11-05", "2023-11-07", "2023-11-10"],
-        "amount": [120.45, 85.20, 65.30, 45.67, 1500.00],
-        "currency": ["KZT", "KZT", "KZT", "KZT", "KZT"],
-        "category": ["Groceries", "Utilities", "Dining", "Transportation", "Salary"],
-        "description": ["Weekly shopping", "Electricity bill", "Restaurant dinner", "Gas station", "Monthly salary"],
-        "type": ["expense", "expense", "expense", "expense", "income"]
-    })
+    st.info("No transactions found. Add some transactions or import a CSV file.")
+
+# Display upload instructions
+with st.expander("CSV Upload Format Instructions"):
+    st.markdown("""
+    ### Required Format for CSV Uploads
     
-    # Display sample data
-    st.dataframe(sample_transactions)
+    Your CSV file should include the following columns:
     
-    st.info("You can add transactions using the 'Add Transaction' page or upload a CSV file above.")
+    - `datetime` - Transaction date and time (YYYY-MM-DD HH:MM:SS format)
+    - `amount` - Transaction amount (positive for income, negative for expenses)
+    - `currency` - Currency code (e.g., KZT, USD)
+    - `category` - Transaction category
+    - `type` - Transaction type ('income' or 'expense')
+    
+    Optional columns:
+    - `description` - Transaction description or notes
+    
+    #### Sample CSV Format:
+    ```
+    datetime,amount,currency,category,type,description
+    2023-05-01 14:30:00,50000,KZT,Salary,income,Monthly salary
+    2023-05-02 12:15:00,-2500,KZT,Food,expense,Lunch
+    ```
+    """)

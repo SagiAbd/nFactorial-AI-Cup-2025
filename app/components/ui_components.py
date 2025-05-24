@@ -1,13 +1,20 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
+from datetime import datetime, timedelta, time
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import os
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
 from core.data_manager import (
     load_transactions, 
     get_financial_summary, 
     get_category_spending,
-    get_monthly_comparison
+    get_monthly_comparison,
+    add_category
 )
 from utils.budget_math import calculate_budget_progress
 from utils.charts import create_spending_trend_chart, create_category_distribution
@@ -15,284 +22,340 @@ from utils.charts import create_spending_trend_chart, create_category_distributi
 
 def render_transaction_type_selector():
     """Render transaction type selection buttons"""
-    st.subheader("Add New Transaction")
+    st.write("**Choose Transaction Type or Import**")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("💰 Income", key="income_btn", type="primary" if st.session_state.selected_type == "income" else "secondary", use_container_width=True):
-            st.session_state.selected_type = "income"
+        expense_selected = st.button(
+            "💸 Add Expense", 
+            use_container_width=True, 
+            type="secondary",
+            disabled=st.session_state.selected_type == "expense"
+        )
+        if expense_selected:
+            st.session_state.selected_type = "expense"
+            st.session_state.selected_currency = None
+            st.session_state.selected_category = None
+            st.rerun()
     
     with col2:
-        if st.button("💸 Expense", key="expense_btn", type="primary" if st.session_state.selected_type == "expense" else "secondary", use_container_width=True):
-            st.session_state.selected_type = "expense"
+        income_selected = st.button(
+            "💰 Add Income", 
+            use_container_width=True, 
+            type="secondary",
+            disabled=st.session_state.selected_type == "income"
+        )
+        if income_selected:
+            st.session_state.selected_type = "income"
+            st.session_state.selected_currency = None
+            st.session_state.selected_category = None
+            st.rerun()
+    
+    with col3:
+        uploaded_file = st.file_uploader(
+            "📁 Import Bank Statement",
+            type=["csv", "xlsx", "pdf"],
+            help="Upload your bank statement",
+            label_visibility="collapsed"
+        )
+        if uploaded_file:
+            st.success(f"📁 {uploaded_file.name}")
+            st.info("🚧 AI processing feature coming soon!")
+
+def render_currency_selector():
+    """Render currency selection using button selector style"""
+    st.write("**Currency**")
+    currencies = st.session_state.config["currencies"]
+    
+    # Create a row of currency buttons
+    cols = st.columns(len(currencies))
+    for i, currency in enumerate(currencies):
+        with cols[i]:
+            is_selected = st.session_state.selected_currency == currency
+            button_type = "primary" if is_selected else "secondary"
+            
+            if st.button(
+                currency, 
+                key=f"currency_{currency}_{st.session_state.selected_type}", 
+                use_container_width=True,
+                type=button_type
+            ):
+                st.session_state.selected_currency = currency
+                st.rerun()
+
+def render_category_selector(transaction_type):
+    """Render category selection using button selector style"""
+    st.write("**Category**")
+    categories = st.session_state.config[f"{transaction_type}_categories"]
+    
+    # Calculate grid layout (max 4 per row)
+    cols_per_row = min(4, len(categories))
+    rows = [categories[i:i + cols_per_row] for i in range(0, len(categories), cols_per_row)]
+    
+    for row_cats in rows:
+        cols = st.columns(len(row_cats))
+        for i, cat in enumerate(row_cats):
+            with cols[i]:
+                is_selected = st.session_state.selected_category == cat['name']
+                button_type = "primary" if is_selected else "secondary"
+                
+                if st.button(
+                    f"{cat['icon']} {cat['name']}", 
+                    key=f"cat_{transaction_type}_{cat['name']}", 
+                    use_container_width=True,
+                    type=button_type
+                ):
+                    st.session_state.selected_category = cat['name']
+                    st.rerun()
+
+def render_add_category_form(transaction_type):
+    """Render form to add new category"""
+    with st.expander("➕ Add New Category"):
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            new_cat_name = st.text_input("Category name", key=f"new_cat_name_{transaction_type}")
+        with col2:
+            new_cat_icon = st.text_input("Icon", placeholder="🏷️", key=f"new_cat_icon_{transaction_type}")
+        with col3:
+            st.write("")  # Empty space for alignment
+            if st.button("Add", key=f"add_cat_{transaction_type}", use_container_width=True):
+                if new_cat_name and new_cat_icon:
+                    if add_category(transaction_type, new_cat_name, new_cat_icon):
+                        st.success(f"✅ Added: {new_cat_icon} {new_cat_name}")
+                        st.rerun()
+                    else:
+                        st.warning("Category already exists!")
+                else:
+                    st.warning("Please enter both name and icon!")
+
+
 
 
 def render_transaction_form(transaction_type):
-    """Render form for adding new transaction"""
-    config = st.session_state.config
+    """Render the transaction form for expense or income"""
+    st.subheader(f"Add {transaction_type.title()}")
     
-    st.subheader(f"New {'Income' if transaction_type == 'income' else 'Expense'}")
+    # Amount input
+    st.write("**Amount**")
+    amount = st.number_input(
+        "Amount", 
+        min_value=0.01, 
+        step=0.01, 
+        format="%.2f", 
+        label_visibility="collapsed",
+        key=f"amount_{transaction_type}"
+    )
     
-    with st.form(key=f"transaction_form_{transaction_type}"):
-        # Date picker
-        transaction_date = st.date_input(
-            "Date",
-            value=date.today(),
-            key=f"date_{transaction_type}"
-        )
+    # Currency selection
+    render_currency_selector()
+    
+    # Date input (without time)
+    st.write("**Date**")
+    transaction_date = st.date_input(
+        "Date",
+        value=datetime.now().date(),
+        key=f"date_{transaction_type}",
+        label_visibility="collapsed"
+    )
+    
+    # Determine time based on selected date
+    current_date = datetime.now().date()
+    current_time = datetime.now().time()
+    
+    # If user selects today's date, use current time
+    # Otherwise, use noon (12:00) as default time
+    if transaction_date == current_date:
+        transaction_time = current_time
+    else:
+        # Default time for non-current dates (noon - 12:00)
+        transaction_time = time(12, 0, 0)
+    
+    # Show the selected time (read-only info)
+    time_str = transaction_time.strftime("%H:%M:%S")
+    st.caption(f"Time: {time_str}")
+    
+    # Combine date and time into a datetime object
+    transaction_datetime = datetime.combine(transaction_date, transaction_time)
+    
+    # Category selection
+    render_category_selector(transaction_type)
+    
+    # Add new category option
+    render_add_category_form(transaction_type)
+    
+    # Description input
+    description = st.text_area(
+        "**Description (Optional)**", 
+        placeholder="Add any additional notes...",
+        key=f"description_{transaction_type}",
+        height=80
+    )
+    
+    # Display selected values
+    if st.session_state.selected_currency or st.session_state.selected_category:
+        st.info(f"💱 **Currency:** {st.session_state.selected_currency or 'Not selected'} | "
+               f"📂 **Category:** {st.session_state.selected_category or 'Not selected'}")
+    
+    # Save button (only show when all required fields are filled)
+    if (amount > 0 and 
+        st.session_state.selected_currency and 
+        st.session_state.selected_category):
         
-        # Amount and currency
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            amount = st.number_input(
-                "Amount",
-                min_value=0.01,
-                value=100.0,
-                step=10.0,
-                key=f"amount_{transaction_type}"
-            )
-        
+        st.write("")  # Space
+        col1, col2, col3 = st.columns([1, 1, 1])
         with col2:
-            # Set or initialize selected currency
-            if st.session_state.selected_currency is None:
-                st.session_state.selected_currency = config["currencies"][0]
-                
-            currency = st.selectbox(
-                "Currency",
-                options=config["currencies"],
-                index=config["currencies"].index(st.session_state.selected_currency),
-                key=f"currency_{transaction_type}"
-            )
-            # Remember the selected currency
-            st.session_state.selected_currency = currency
-        
-        # Category selection
-        categories_key = f"{transaction_type}_categories"
-        category_names = [cat["name"] for cat in config[categories_key]]
-        category_icons = {cat["name"]: cat["icon"] for cat in config[categories_key]}
-        
-        # Set or initialize selected category
-        if st.session_state.selected_category is None or st.session_state.selected_category not in category_names:
-            st.session_state.selected_category = category_names[0]
-            
-        # Display categories as a grid of buttons
-        st.write("Category")
-        cols = st.columns(4)
-        
-        for i, name in enumerate(category_names):
-            col_idx = i % 4
-            with cols[col_idx]:
-                icon = category_icons[name]
-                if st.button(
-                    f"{icon} {name}", 
-                    key=f"cat_{name}_{transaction_type}",
-                    type="primary" if st.session_state.selected_category == name else "secondary",
-                    use_container_width=True
-                ):
-                    st.session_state.selected_category = name
-        
-        # Add custom category option
-        with st.expander("Add Custom Category"):
-            custom_name = st.text_input("Category Name", key=f"custom_name_{transaction_type}")
-            custom_icon = st.text_input("Icon (emoji)", key=f"custom_icon_{transaction_type}", placeholder="💼")
-            
-            if st.button("Add Category", key=f"add_cat_btn_{transaction_type}"):
-                from core.data_manager import add_category
-                if custom_name and custom_icon:
-                    success = add_category(transaction_type, custom_name, custom_icon)
-                    if success:
-                        st.success(f"Added category {custom_icon} {custom_name}")
-                        # Need to rerun to update the category list
-                        st.rerun()
-                    else:
-                        st.error("Category already exists")
-        
-        # Display the selected category
-        st.info(f"Selected Category: {category_icons.get(st.session_state.selected_category, '📋')} {st.session_state.selected_category}")
-        
-        # Description
-        description = st.text_area(
-            "Description (optional)",
-            key=f"description_{transaction_type}",
-            placeholder="Add details about this transaction..."
-        )
-        
-        # Submit button
-        submitted = st.form_submit_button(
-            f"Save {'Income' if transaction_type == 'income' else 'Expense'}", 
-            type="primary",
-            use_container_width=True
-        )
-        
-        if submitted:
-            st.session_state.form_submitted = True
-            
-            return {
-                "transaction_date": transaction_date,
-                "amount": amount,
-                "category": st.session_state.selected_category,
-                "currency": currency,
-                "transaction_type": transaction_type,
-                "description": description
-            }
+            if st.button("💾 Save Transaction", use_container_width=True, type="primary"):
+                return {
+                    "transaction_datetime": transaction_datetime,
+                    "amount": amount,
+                    "category": st.session_state.selected_category,
+                    "currency": st.session_state.selected_currency,
+                    "transaction_type": transaction_type,
+                    "description": description
+                }
     
     return None
 
 
 def render_recent_transactions():
-    """Render table of recent transactions"""
-    st.subheader("Recent Transactions")
-    
-    transactions = load_transactions()
-    
-    if transactions.empty:
-        st.info("No transactions yet. Add some using the form above!")
-        return
-    
-    # Sort by date descending
-    transactions = transactions.sort_values(by='date', ascending=False).head(10)
-    
-    # Format for display
-    display_df = transactions.copy()
-    display_df['date'] = display_df['date'].dt.strftime('%Y-%m-%d')
-    display_df['amount'] = display_df.apply(
-        lambda x: f"{x['amount']:.2f} {x['currency']}", 
-        axis=1
-    )
-    
-    # Add emoji indicators for transaction type
-    display_df['type'] = display_df['type'].apply(
-        lambda x: "💰 Income" if x == "income" else "💸 Expense"
-    )
-    
-    # Reorder columns for display
-    display_df = display_df[['date', 'type', 'category', 'amount', 'description']]
-    display_df.columns = ['Date', 'Type', 'Category', 'Amount', 'Description']
-    
-    st.dataframe(
-        display_df,
-        hide_index=True,
-        use_container_width=True
-    )
+    """Display recent transactions with enhanced formatting"""
+    with st.expander("📋 Recent Transactions", expanded=False):
+        transactions = load_transactions()
+        
+        if not transactions.empty:
+            recent = transactions.sort_values('datetime', ascending=False).head(10)
+            
+            # Create a more structured display
+            for _, tx in recent.iterrows():
+                amount_color = "green" if tx['amount'] > 0 else "red"
+                amount_symbol = "+" if tx['amount'] > 0 else ""
+                
+                # Create columns for better layout
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
+                
+                with col1:
+                    st.write(f"**{tx['datetime'].strftime('%Y-%m-%d %H:%M')}**")
+                with col2:
+                    st.write(f"📂 {tx['category']}")
+                with col3:
+                    st.markdown(f":{amount_color}[{amount_symbol}{tx['amount']:.2f} {tx['currency']}]")
+                with col4:
+                    desc = tx['description'] if pd.notna(tx['description']) and tx['description'] else 'No description'
+                    st.write(f"📝 {desc[:30]}{'...' if len(str(desc)) > 30 else ''}")
+                
+                st.markdown("---")
+        else:
+            st.info("No transactions yet. Add your first transaction!")
+
 
 
 def render_sidebar_summary():
-    """Render financial summary in sidebar"""
+    """Render enhanced sidebar with AI-powered financial summary"""
     with st.sidebar:
-        st.title("💰 Financial Summary")
+        st.header("📊 AI Financial Dashboard")
         
+        # Get comprehensive summary
         summary = get_financial_summary()
         
-        # Display total balance
-        st.metric(
-            "Current Balance",
-            f"{summary['balance']:.2f} KZT",
-            delta=f"{summary['monthly_income'] - summary['monthly_expenses']:.2f} this month"
-        )
-        
-        st.markdown("---")
-        
-        # Monthly income vs expenses
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Income", f"{summary['monthly_income']:.2f}")
-        with col2:
-            st.metric("Expenses", f"{summary['monthly_expenses']:.2f}")
-        
-        # Calculate savings rate
-        if summary['monthly_income'] > 0:
-            savings_rate = (summary['monthly_income'] - summary['monthly_expenses']) / summary['monthly_income'] * 100
-            st.progress(max(min(savings_rate / 100, 1), 0), f"Savings Rate: {savings_rate:.1f}%")
-        
-        st.markdown("---")
-        
-        # Top spending categories
-        st.subheader("Top Spending")
-        
-        if summary['top_categories']:
-            for category, amount in summary['top_categories'].items():
-                st.metric(category, f"{amount:.2f} KZT")
+        if summary["total_income"] > 0 or summary["total_expenses"] > 0:
+            # Overall metrics
+            st.subheader("💰 Overall Summary")
+            st.metric("Total Income", f"{summary['total_income']:.2f}")
+            st.metric("Total Expenses", f"{summary['total_expenses']:.2f}")
+            
+            balance_delta = "normal" if summary['balance'] >= 0 else "inverse"
+            st.metric("Balance", f"{summary['balance']:.2f}", delta_color=balance_delta)
+            
+            # Monthly metrics
+            st.subheader("📅 This Month")
+            st.metric("Monthly Income", f"{summary['monthly_income']:.2f}")
+            st.metric("Monthly Expenses", f"{summary['monthly_expenses']:.2f}")
+            
+            # AI Insights
+            st.subheader("🧠 AI Insights")
+            st.info(f"📈 {summary['recent_trend']}")
+            
+            # Top spending categories
+            if summary['top_categories']:
+                st.subheader("🔥 Top Spending")
+                for category, amount in list(summary['top_categories'].items())[:3]:
+                    st.write(f"• **{category}**: {amount:.2f}")
+            
+            # Financial Health Score
+            if summary['monthly_expenses'] > 0:
+                savings_rate = (summary['monthly_income'] - summary['monthly_expenses']) / summary['monthly_income'] * 100
+                if savings_rate > 20:
+                    health_status = "🟢 Excellent"
+                elif savings_rate > 10:
+                    health_status = "🟡 Good"
+                elif savings_rate > 0:
+                    health_status = "🟠 Fair"
+                else:
+                    health_status = "🔴 Needs Attention"
                 
-                # Get goal limit for category if it exists
-                goals = st.session_state.goals
-                if 'category_limits' in goals and category in goals['category_limits']:
-                    limit = goals['category_limits'][category]
-                    progress = min(amount / limit, 1) * 100
-                    st.progress(progress / 100, f"{progress:.1f}% of {limit} KZT limit")
+                st.subheader("💊 Financial Health")
+                st.write(f"**Status**: {health_status}")
+                st.write(f"**Savings Rate**: {savings_rate:.1f}%")
+            
+            # Quick actions
+            st.subheader("⚡ Quick Actions")
+            if st.button("🎯 Set Goals", use_container_width=True):
+                st.session_state.show_goals = True
+            if st.button("📊 View Analytics", use_container_width=True):
+                st.session_state.show_analytics = True
+                
         else:
-            st.info("No expenses recorded yet")
+            st.info("💡 Start adding transactions to see your AI-powered financial insights!")
         
-        # Recent trend
-        st.markdown("---")
-        st.subheader("Recent Trend")
-        st.write(summary['recent_trend'])
-        
-        # Budget progress
-        st.markdown("---")
-        st.subheader("Monthly Budget")
-        
-        goals = st.session_state.goals
-        budget_progress = calculate_budget_progress(summary['monthly_expenses'], goals['monthly_budget'])
-        
-        # Display progress bar
-        st.progress(budget_progress / 100, f"{budget_progress:.1f}% of budget used")
-        
-        remaining = goals['monthly_budget'] - summary['monthly_expenses']
-        st.metric("Remaining Budget", f"{remaining:.2f} KZT")
-        
-        # Spending trend chart
-        st.markdown("---")
-        st.subheader("Spending by Category")
-        chart = create_category_distribution(transactions=load_transactions())
-        st.plotly_chart(chart, use_container_width=True)
-        
-        # Monthly comparison
-        st.markdown("---")
-        st.subheader("Monthly Comparison")
-        monthly_data = get_monthly_comparison()
-        
-        if monthly_data:
-            # Convert period to string for display
-            data = []
-            for period, values in monthly_data['amount'].items():
-                data.append({
-                    'Month': str(period),
-                    'Income': values['income'],
-                    'Expenses': values['expenses'],
-                    'Balance': values['balance']
-                })
-            
-            df = pd.DataFrame(data)
-            
-            # Create a bar chart
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=df['Month'],
-                y=df['Income'],
-                name='Income',
-                marker_color='green'
-            ))
-            fig.add_trace(go.Bar(
-                x=df['Month'],
-                y=df['Expenses'],
-                name='Expenses',
-                marker_color='red'
-            ))
-            
-            fig.update_layout(
-                barmode='group',
-                margin=dict(l=0, r=0, t=30, b=0),
-                height=300,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Not enough data for monthly comparison") 
+        # Goals section
+        if hasattr(st.session_state, 'show_goals') and st.session_state.show_goals:
+            render_goals_section()
+
+def render_goals_section():
+    """Render financial goals management section"""
+    st.subheader("🎯 Financial Goals")
+    
+    goals = st.session_state.goals
+    
+    # Monthly budget goal
+    monthly_budget = st.number_input(
+        "Monthly Budget (KZT)", 
+        value=goals.get("monthly_budget", 100000),
+        step=1000
+    )
+    
+    # Savings target
+    savings_target = st.number_input(
+        "Monthly Savings Target (KZT)", 
+        value=goals.get("savings_target", 50000),
+        step=1000
+    )
+    
+    # Category limits
+    st.write("**Category Spending Limits**")
+    category_limits = goals.get("category_limits", {})
+    
+    for category in ["Food", "Transport", "Entertainment", "Shopping"]:
+        limit = st.number_input(
+            f"{category} Limit (KZT)",
+            value=category_limits.get(category, 10000),
+            step=1000,
+            key=f"limit_{category}"
+        )
+        category_limits[category] = limit
+    
+    # Save goals
+    if st.button("💾 Save Goals"):
+        updated_goals = {
+            "monthly_budget": monthly_budget,
+            "savings_target": savings_target,
+            "category_limits": category_limits
+        }
+        st.session_state.goals = updated_goals
+        from core.data_manager import save_goals
+        save_goals(updated_goals)
+        st.success("✅ Goals saved!")
+        st.session_state.show_goals = False
+        st.rerun()

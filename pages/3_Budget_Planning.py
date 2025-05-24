@@ -147,16 +147,16 @@ if current_month in budget_goals and budget_goals[current_month]:
     
     if not transactions.empty:
         # Convert date to datetime if it's not already
-        if not pd.api.types.is_datetime64_any_dtype(transactions["date"]):
-            transactions["date"] = pd.to_datetime(transactions["date"])
+        if not pd.api.types.is_datetime64_any_dtype(transactions["datetime"]):
+            transactions["datetime"] = pd.to_datetime(transactions["datetime"])
         
         # Filter transactions for current month
         current_month_start = datetime.strptime(current_month, "%Y-%m").replace(day=1)
         next_month_start = (current_month_start + timedelta(days=32)).replace(day=1)
         
         month_transactions = transactions[
-            (transactions["date"] >= pd.Timestamp(current_month_start)) & 
-            (transactions["date"] < pd.Timestamp(next_month_start)) &
+            (transactions["datetime"] >= pd.Timestamp(current_month_start)) & 
+            (transactions["datetime"] < pd.Timestamp(next_month_start)) &
             (transactions["type"] == "expense")
         ]
         

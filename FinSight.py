@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import datetime
 import pandas as pd
 from streamlit_extras.bottom_container import bottom
 

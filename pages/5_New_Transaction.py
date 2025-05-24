@@ -3,7 +3,7 @@ FinSight - Add Transaction Page
 """
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, time, date
 import json
 import os
 
@@ -56,7 +56,7 @@ def load_transactions():
         return pd.read_csv(TRANSACTIONS_FILE)
     else:
         return pd.DataFrame({
-            "date": [],
+            "datetime": [],
             "amount": [],
             "currency": [],
             "category": [],
@@ -65,11 +65,11 @@ def load_transactions():
         })
 
 # Helper function to save transactions
-def save_transaction(date, amount, currency, category, description, transaction_type):
+def save_transaction(transaction_datetime, amount, currency, category, description, transaction_type):
     df = load_transactions()
     
     new_transaction = pd.DataFrame({
-        "date": [date],
+        "datetime": [transaction_datetime.strftime('%Y-%m-%d %H:%M:%S')],
         "amount": [amount],
         "currency": [currency],
         "category": [category],
@@ -104,8 +104,27 @@ with st.form("transaction_form"):
             label_visibility="collapsed"
         )
     
-    # Date picker
-    date = st.date_input("Date", datetime.now().date())
+    # Date input (without time)
+    transaction_date = st.date_input("Date", datetime.now().date())
+    
+    # Determine time based on selected date
+    current_date = datetime.now().date()
+    current_time = datetime.now().time()
+    
+    # If user selects today's date, use current time
+    # Otherwise, use noon (12:00) as default time
+    if transaction_date == current_date:
+        transaction_time = current_time
+    else:
+        # Default time for non-current dates (noon - 12:00)
+        transaction_time = time(12, 0, 0)
+    
+    # Show the selected time (read-only info)
+    time_str = transaction_time.strftime("%H:%M:%S")
+    st.caption(f"Time: {time_str}")
+    
+    # Combine date and time into a datetime object
+    transaction_datetime = datetime.combine(transaction_date, transaction_time)
     
     # Category selection based on transaction type
     if transaction_type == "Expense":
@@ -140,51 +159,62 @@ with st.form("transaction_form"):
     with col1:
         custom_name = st.text_input("Category name", key="custom_cat_name")
     with col2:
-        custom_icon = st.selectbox("Icon", ["💰", "🎮", "🎵", "🚀", "🏆", "🎨", "🎭", "🍕", "🍺", "☕"], label_visibility="collapsed")
+        custom_icon = st.text_input("Icon", placeholder="🏷️", key="custom_cat_icon")
     
-    if custom_name and custom_icon:
-        if st.button(f"Add {custom_icon} {custom_name} as category"):
-            # In a real app, you would save this to a user preferences file
+    # Description field
+    description = st.text_area("Description (optional)")
+    
+    # Submit button
+    submitted = st.form_submit_button("Add Transaction")
+
+# Handle form submission
+if submitted:
+    if amount <= 0:
+        st.error("Amount must be greater than zero")
+    elif not currency:
+        st.error("Please select a currency")
+    elif not selected_category and not custom_name:
+        st.error("Please select or add a category")
+    else:
+        # Use custom category if provided
+        final_category = None
+        if custom_name:
+            if not custom_icon:
+                custom_icon = "📋"  # Default icon
+            final_category = custom_name
+            # Add to session state for future use
             if transaction_type == "Expense":
                 EXPENSE_CATEGORIES[custom_name] = custom_icon
             else:
                 INCOME_CATEGORIES[custom_name] = custom_icon
-            selected_category = custom_name
-            st.session_state["selected_category"] = custom_name
-    
-    # Show the currently selected category
-    if selected_category:
-        icon = categories.get(selected_category, "📋")
-        st.success(f"Selected category: {icon} {selected_category}")
-    
-    # Description field
-    description = st.text_area("Description (optional)", height=100)
-    
-    # Submit button
-    submitted = st.form_submit_button("Add Transaction")
-    
-    if submitted:
-        if not selected_category:
-            st.error("Please select a category")
-        elif amount <= 0:
-            st.error("Please enter a valid amount")
         else:
-            # Save the transaction
-            transaction_df = save_transaction(
-                date.strftime("%Y-%m-%d"), 
-                amount, 
-                currency, 
-                selected_category, 
-                description, 
-                transaction_type.lower()
+            final_category = selected_category
+        
+        # Save transaction
+        transaction_df = save_transaction(
+            transaction_datetime=transaction_datetime,
+            amount=amount,
+            currency=currency,
+            category=final_category,
+            description=description,
+            transaction_type=transaction_type.lower()
+        )
+        
+        st.success(f"Transaction added: {'+' if transaction_type == 'Income' else '-'}{amount} {currency}")
+        
+        # Show latest transactions
+        st.subheader("Recent Transactions")
+        recent_transactions = transaction_df.sort_values("datetime", ascending=False).head(5)
+        
+        # Format for display
+        for _, tx in recent_transactions.iterrows():
+            amount_color = "green" if tx["type"] == "income" else "red"
+            amount_sign = "+" if tx["type"] == "income" else "-"
+            
+            st.markdown(
+                f"**{pd.to_datetime(tx['datetime']).strftime('%Y-%m-%d %H:%M')}** | "
+                f"**:{amount_color}[{amount_sign}{abs(float(tx['amount'])):.2f} {tx['currency']}]** | "
+                f"📂 {tx['category']} | "
+                f"📝 {tx['description'] if not pd.isna(tx['description']) else 'No description'}"
             )
-            
-            # Success message with details
-            st.success(f"Added {transaction_type.lower()}: {currency} {amount:.2f} in {selected_category}")
-            
-            # Show updated transactions
-            st.write("Recent Transactions:")
-            st.dataframe(transaction_df.tail(5), use_container_width=True)
-            
-            # Clear the form
-            st.session_state["selected_category"] = None 
+            st.markdown("---") 
