@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from dotenv import load_dotenv
 
 
@@ -14,7 +14,7 @@ GOALS_FILE = os.path.join(DATA_DIR, "goals.json")
 
 # Default configurations
 DEFAULT_CONFIG = {
-    "currencies": ["KZT", "USD", "EUR", "RUB"],
+    "currencies": ["KZT", "USD", "EUR"],
     "expense_categories": [
         {"name": "Food", "icon": "🍔"},
         {"name": "Transport", "icon": "🚗"},
@@ -23,8 +23,7 @@ DEFAULT_CONFIG = {
         {"name": "Entertainment", "icon": "🎮"},
         {"name": "Health", "icon": "🏥"},
         {"name": "Education", "icon": "📚"},
-        {"name": "Housing", "icon": "🏠"},
-        {"name": "Other", "icon": "📦"}
+        {"name": "Housing", "icon": "🏠"}
     ],
     "income_categories": [
         {"name": "Salary", "icon": "💼"},
@@ -32,8 +31,7 @@ DEFAULT_CONFIG = {
         {"name": "Investment", "icon": "📈"},
         {"name": "Gift", "icon": "🎁"},
         {"name": "Bonus", "icon": "🎯"},
-        {"name": "Refund", "icon": "💸"},
-        {"name": "Other", "icon": "💰"}
+        {"name": "Refund", "icon": "💸"}
     ]
 }
 
@@ -135,32 +133,32 @@ def load_transactions():
     try:
         if os.path.exists(TRANSACTIONS_FILE):
             df = pd.read_csv(TRANSACTIONS_FILE)
-            # Ensure datetime column is datetime with flexible parsing
-            # Check if we need to handle legacy 'date' column name
-            if 'date' in df.columns and 'datetime' not in df.columns:
-                df['datetime'] = pd.to_datetime(df['date'], errors='coerce')
-                df = df.drop('date', axis=1)
+            # Ensure date column is datetime with flexible parsing
+            # Check if we need to handle legacy 'datetime' column name
+            if 'datetime' in df.columns and 'date' not in df.columns:
+                df['date'] = pd.to_datetime(df['datetime'], errors='coerce')
+                df = df.drop('datetime', axis=1)
             else:
-                df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
             # Drop any rows with invalid dates
-            df = df.dropna(subset=['datetime'])
+            df = df.dropna(subset=['date'])
             return df
         else:
-            df = pd.DataFrame(columns=['datetime', 'description', 'amount', 'category', 'currency', 'type'])
+            df = pd.DataFrame(columns=['date', 'description', 'amount', 'category', 'currency', 'type'])
             df.to_csv(TRANSACTIONS_FILE, index=False)
             return df
     except Exception as e:
         st.error(f"Error loading transactions: {e}")
-        return pd.DataFrame(columns=['datetime', 'description', 'amount', 'category', 'currency', 'type'])
+        return pd.DataFrame(columns=['date', 'description', 'amount', 'category', 'currency', 'type'])
 
 
-def save_transaction(transaction_datetime, amount, category, currency, transaction_type, description=""):
+def save_transaction(transaction_date, amount, category, currency, transaction_type, description=""):
     """Save a new transaction to CSV file"""
     try:
         transactions = load_transactions()
         
         new_transaction = {
-            'datetime': transaction_datetime.strftime('%Y-%m-%d %H:%M:%S'),
+            'date': transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
             'description': description,
             'amount': amount if transaction_type == 'income' else -abs(amount),
             'category': category,
@@ -207,8 +205,8 @@ def get_financial_summary():
         }
     
     # Current month data
-    current_month = datetime.now().replace(day=1)
-    monthly_data = transactions[transactions['datetime'] >= current_month]
+    current_month = pd.Timestamp(date.today().replace(day=1))
+    monthly_data = transactions[transactions['date'] >= current_month]
     
     # Calculate totals
     total_income = transactions[transactions['amount'] > 0]['amount'].sum()
@@ -223,17 +221,17 @@ def get_financial_summary():
     top_categories = expense_by_category.head(3).to_dict()
     
     # Recent trend (last 7 days vs previous 7 days)
-    last_week = datetime.now() - timedelta(days=7)
-    prev_week = datetime.now() - timedelta(days=14)
+    last_week = pd.Timestamp(date.today() - timedelta(days=7))
+    prev_week = pd.Timestamp(date.today() - timedelta(days=14))
     
     recent_expenses = abs(transactions[
-        (transactions['datetime'] >= last_week) & 
+        (transactions['date'] >= last_week) & 
         (transactions['amount'] < 0)
     ]['amount'].sum())
     
     prev_expenses = abs(transactions[
-        (transactions['datetime'] >= prev_week) & 
-        (transactions['datetime'] < last_week) & 
+        (transactions['date'] >= prev_week) & 
+        (transactions['date'] < last_week) & 
         (transactions['amount'] < 0)
     ]['amount'].sum())
     
@@ -260,29 +258,35 @@ def get_financial_summary():
 
 
 def get_category_spending(category, days=30):
-    """Get spending for specific category in last N days"""
+    """Get spending for a specific category in the last X days"""
     transactions = load_transactions()
+    
     if transactions.empty:
         return 0
     
-    cutoff_date = datetime.now() - timedelta(days=days)
-    category_transactions = transactions[
-        (transactions['category'] == category) & 
-        (transactions['amount'] < 0) & 
-        (transactions['datetime'] >= cutoff_date)
-    ]
+    # Calculate cutoff date
+    cutoff_date = pd.Timestamp(date.today() - timedelta(days=days))
     
-    return abs(category_transactions['amount'].sum())
+    # Filter transactions
+    category_spending = abs(transactions[
+        (transactions['category'] == category) &
+        (transactions['date'] >= cutoff_date)
+    ]['amount'].sum())
+    
+    return category_spending
 
 
 def get_monthly_comparison():
-    """Compare current month with previous months"""
+    """Get month-by-month spending and income for comparison"""
     transactions = load_transactions()
+    
     if transactions.empty:
-        return {}
+        return pd.DataFrame()
+    
+    # Create month periods for grouping
+    transactions['month'] = transactions['date'].dt.to_period('M')
     
     # Group by month
-    transactions['month'] = transactions['datetime'].dt.to_period('M')
     monthly_summary = transactions.groupby('month').agg({
         'amount': lambda x: {
             'income': x[x > 0].sum(),

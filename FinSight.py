@@ -1,7 +1,6 @@
 import streamlit as st
-from datetime import datetime
+from datetime import date
 import pandas as pd
-from streamlit_extras.bottom_container import bottom
 
 from core.data_manager import (
     initialize_session_state, 
@@ -108,11 +107,12 @@ def main():
     st.markdown("---")
     render_recent_transactions()
     
+    # Chat interface after recent transactions
+    st.markdown("---")
+    render_chat_interface()
+    
     # Sidebar summary with AI insights
     render_sidebar_summary()
-    
-    # Chat interface at bottom
-    render_chat_interface()
 
 
 if __name__ == "__main__":

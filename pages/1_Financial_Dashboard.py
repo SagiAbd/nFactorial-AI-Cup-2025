@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
-from datetime import datetime, timedelta
+from datetime import date, timedelta
 
 st.set_page_config(
     page_title="Dashboard - FinSight",
@@ -74,8 +74,8 @@ if transactions.empty:
 else:
     # Data preprocessing
     if not transactions.empty:
-        # Ensure datetime column is properly formatted
-        transactions["datetime"] = pd.to_datetime(transactions["datetime"])
+        # Ensure date column is properly formatted
+        transactions["date"] = pd.to_datetime(transactions["date"])
         
         # Filter data based on time period
         time_period = st.sidebar.selectbox(
@@ -85,35 +85,35 @@ else:
         
         # Determine start date based on selected time period
         if time_period == "Last 30 Days":
-            start_date = (datetime.now() - pd.Timedelta(days=30)).date()
+            start_date = (date.today() - timedelta(days=30))
         elif time_period == "Last 3 Months":
-            start_date = (datetime.now() - pd.Timedelta(days=90)).date()
+            start_date = (date.today() - timedelta(days=90))
         elif time_period == "Last 6 Months":
-            start_date = (datetime.now() - pd.Timedelta(days=180)).date()
+            start_date = (date.today() - timedelta(days=180))
         elif time_period == "Year to Date":
-            start_date = datetime(datetime.now().year, 1, 1).date()
+            start_date = date(date.today().year, 1, 1)
         elif time_period == "All Time":
-            start_date = transactions["datetime"].min().date()
+            start_date = transactions["date"].min().date()
         else:  # Custom Range
             date_range = st.sidebar.date_input(
                 "Select Date Range",
-                value=[transactions["datetime"].min().date(), datetime.now().date()],
-                min_value=transactions["datetime"].min().date(),
-                max_value=datetime.now().date()
+                value=[transactions["date"].min().date(), date.today()],
+                min_value=transactions["date"].min().date(),
+                max_value=date.today()
             )
             if len(date_range) == 2:
                 start_date, end_date = date_range
                 filtered_transactions = transactions[
-                    (transactions["datetime"] >= pd.Timestamp(start_date)) & 
-                    (transactions["datetime"] <= pd.Timestamp(end_date))
+                    (transactions["date"] >= pd.Timestamp(start_date)) & 
+                    (transactions["date"] <= pd.Timestamp(end_date))
                 ]
             else:
-                start_date = transactions["datetime"].min().date()
-                filtered_transactions = transactions[transactions["datetime"] >= pd.Timestamp(start_date)]
+                start_date = transactions["date"].min().date()
+                filtered_transactions = transactions[transactions["date"] >= pd.Timestamp(start_date)]
         
         # Apply date filter if not custom range
         if time_period != "Custom Range":
-            filtered_transactions = transactions[transactions["datetime"] >= pd.Timestamp(start_date)]
+            filtered_transactions = transactions[transactions["date"] >= pd.Timestamp(start_date)]
         
         # Calculate overview metrics
         total_income = filtered_transactions[filtered_transactions["amount"] > 0]["amount"].sum()
@@ -133,7 +133,7 @@ else:
         st.subheader("Monthly Cash Flow")
         
         # Prepare data for monthly trend
-        filtered_transactions["month"] = filtered_transactions["datetime"].dt.strftime("%b %Y")
+        filtered_transactions["month"] = filtered_transactions["date"].dt.strftime("%b %Y")
         
         monthly_income = filtered_transactions[filtered_transactions["amount"] > 0].groupby("month")["amount"].sum()
         monthly_expenses = abs(filtered_transactions[filtered_transactions["amount"] < 0].groupby("month")["amount"].sum())
@@ -145,7 +145,7 @@ else:
         st.markdown("### Income vs Expenses")
         
         # Group by month and transaction type
-        filtered_transactions["month"] = filtered_transactions["datetime"].dt.strftime("%b %Y")
+        filtered_transactions["month"] = filtered_transactions["date"].dt.strftime("%b %Y")
         monthly_summary = filtered_transactions.groupby(["month", "type"])["amount"].sum().reset_index()
         
         # Pivot to get income and expenses as columns
@@ -189,7 +189,7 @@ else:
         
         # Recent Transactions
         st.markdown("### Recent Transactions")
-        recent_transactions = filtered_transactions.sort_values("datetime", ascending=False).head(5)
+        recent_transactions = filtered_transactions.sort_values("date", ascending=False).head(5)
         
         if not recent_transactions.empty:
             # Format for display
@@ -209,7 +209,7 @@ else:
             display_df["formatted_amount"] = display_df.apply(format_amount, axis=1)
             
             # Format date
-            display_df["formatted_date"] = display_df["datetime"].dt.strftime("%Y-%m-%d")
+            display_df["formatted_date"] = display_df["date"].dt.strftime("%Y-%m-%d")
             
             # Select and rename columns for display
             display_df = display_df[["formatted_date", "category", "formatted_amount", "description"]]

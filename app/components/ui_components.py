@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta, time
+from datetime import date, time, datetime
 import plotly.express as px
 import plotly.graph_objects as go
 import sys
@@ -67,6 +67,10 @@ def render_currency_selector():
     """Render currency selection using button selector style"""
     st.write("**Currency**")
     currencies = st.session_state.config["currencies"]
+    
+    # Set KZT as default currency if none is selected
+    if st.session_state.selected_currency is None:
+        st.session_state.selected_currency = "KZT"
     
     # Create a row of currency buttons
     cols = st.columns(len(currencies))
@@ -155,13 +159,13 @@ def render_transaction_form(transaction_type):
     st.write("**Date**")
     transaction_date = st.date_input(
         "Date",
-        value=datetime.now().date(),
+        value=date.today(),
         key=f"date_{transaction_type}",
         label_visibility="collapsed"
     )
     
     # Determine time based on selected date
-    current_date = datetime.now().date()
+    current_date = date.today()
     current_time = datetime.now().time()
     
     # If user selects today's date, use current time
@@ -177,7 +181,7 @@ def render_transaction_form(transaction_type):
     st.caption(f"Time: {time_str}")
     
     # Combine date and time into a datetime object
-    transaction_datetime = datetime.combine(transaction_date, transaction_time)
+    transaction_date_time = datetime.combine(transaction_date, transaction_time)
     
     # Category selection
     render_category_selector(transaction_type)
@@ -208,7 +212,7 @@ def render_transaction_form(transaction_type):
         with col2:
             if st.button("💾 Save Transaction", use_container_width=True, type="primary"):
                 return {
-                    "transaction_datetime": transaction_datetime,
+                    "transaction_date": transaction_date_time,
                     "amount": amount,
                     "category": st.session_state.selected_category,
                     "currency": st.session_state.selected_currency,
@@ -225,7 +229,7 @@ def render_recent_transactions():
         transactions = load_transactions()
         
         if not transactions.empty:
-            recent = transactions.sort_values('datetime', ascending=False).head(10)
+            recent = transactions.sort_values('date', ascending=False).head(10)
             
             # Create a more structured display
             for _, tx in recent.iterrows():
@@ -236,7 +240,7 @@ def render_recent_transactions():
                 col1, col2, col3, col4 = st.columns([2, 1, 1, 2])
                 
                 with col1:
-                    st.write(f"**{tx['datetime'].strftime('%Y-%m-%d %H:%M')}**")
+                    st.write(f"**{tx['date'].strftime('%Y-%m-%d %H:%M')}**")
                 with col2:
                     st.write(f"📂 {tx['category']}")
                 with col3:

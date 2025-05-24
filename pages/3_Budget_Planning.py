@@ -5,7 +5,7 @@ import streamlit as st
 import pandas as pd
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 st.set_page_config(
     page_title="Budget Goals - FinSight",
@@ -62,8 +62,8 @@ transactions = load_transactions()
 budget_goals = load_budget_goals()
 
 # Current month
-current_month = datetime.now().strftime("%Y-%m")
-current_month_name = datetime.now().strftime("%B %Y")
+current_month = date.today().strftime("%Y-%m")
+current_month_name = date.today().strftime("%B %Y")
 
 # Define default expense categories from the Add Transaction page
 EXPENSE_CATEGORIES = {
@@ -111,9 +111,9 @@ with st.form("budget_form"):
     # Date range for the budget goal
     col1, col2 = st.columns(2)
     with col1:
-        start_month = st.date_input("Start Month", value=datetime.now().replace(day=1)).strftime("%Y-%m")
+        start_month = st.date_input("Start Month", value=date.today().replace(day=1)).strftime("%Y-%m")
     with col2:
-        end_month = st.date_input("End Month", value=(datetime.now() + timedelta(days=90)).replace(day=1)).strftime("%Y-%m")
+        end_month = st.date_input("End Month", value=(date.today() + timedelta(days=90)).replace(day=1)).strftime("%Y-%m")
     
     submit_button = st.form_submit_button("Create Budget Goal")
     
@@ -146,17 +146,13 @@ if current_month in budget_goals and budget_goals[current_month]:
     current_spending = {}
     
     if not transactions.empty:
-        # Convert date to datetime if it's not already
-        if not pd.api.types.is_datetime64_any_dtype(transactions["datetime"]):
-            transactions["datetime"] = pd.to_datetime(transactions["datetime"])
-        
         # Filter transactions for current month
         current_month_start = datetime.strptime(current_month, "%Y-%m").replace(day=1)
         next_month_start = (current_month_start + timedelta(days=32)).replace(day=1)
         
         month_transactions = transactions[
-            (transactions["datetime"] >= pd.Timestamp(current_month_start)) & 
-            (transactions["datetime"] < pd.Timestamp(next_month_start)) &
+            (transactions["date"] >= pd.Timestamp(current_month_start)) & 
+            (transactions["date"] < pd.Timestamp(next_month_start)) &
             (transactions["type"] == "expense")
         ]
         
@@ -261,3 +257,25 @@ if not transactions.empty:
             st.success("Great job! You're on track with your budgets.")
     else:
         st.info("Add some expense transactions to get budget recommendations.")
+
+# Analysis based on historical data
+def show_spending_analysis():
+    st.header("Spending Analysis")
+    
+    # Load transactions
+    transactions = load_transactions()
+    
+    if transactions.empty:
+        st.info("No transaction data available for analysis. Add some transactions first.")
+        return
+    
+    # Convert date to datetime if it's not already
+    if not pd.api.types.is_datetime64_any_dtype(transactions["date"]):
+        transactions["date"] = pd.to_datetime(transactions["date"])
+    
+    # Current month data
+    current_month = date.today().strftime("%Y-%m")
+    current_month_start = datetime.strptime(current_month, "%Y-%m").replace(day=1)
+    next_month_start = (current_month_start + timedelta(days=32)).replace(day=1)
+    
+    # ... existing code ...

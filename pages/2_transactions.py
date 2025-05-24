@@ -27,7 +27,7 @@ def load_transactions():
         return pd.read_csv(TRANSACTIONS_FILE)
     else:
         return pd.DataFrame({
-            "datetime": [],
+            "date": [],
             "amount": [],
             "currency": [],
             "category": [],
@@ -45,12 +45,12 @@ if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
         
         # Check if the file has the required columns
-        required_columns = ["datetime", "amount", "currency", "category", "type"]
-        # Handle legacy files with 'date' column
-        if "date" in df.columns and "datetime" not in df.columns:
-            df["datetime"] = df["date"]
-            df = df.drop("date", axis=1)
-            required_columns = ["datetime" if col == "date" else col for col in required_columns]
+        required_columns = ["date", "amount", "currency", "category", "type"]
+        # Handle legacy files with 'datetime' column
+        if "datetime" in df.columns and "date" not in df.columns:
+            df["date"] = df["datetime"]
+            df = df.drop("datetime", axis=1)
+            required_columns = ["date" if col == "datetime" else col for col in required_columns]
             
         missing_columns = [col for col in required_columns if col not in df.columns]
         
@@ -113,14 +113,14 @@ if not transactions.empty:
     if len(date_range) == 2:
         start_date, end_date = date_range
         filtered_df = filtered_df[
-            (pd.to_datetime(filtered_df["datetime"]) >= pd.to_datetime(start_date)) & 
-            (pd.to_datetime(filtered_df["datetime"]) <= pd.to_datetime(end_date))
+            (pd.to_datetime(filtered_df["date"]) >= pd.to_datetime(start_date)) & 
+            (pd.to_datetime(filtered_df["date"]) <= pd.to_datetime(end_date))
         ]
     
     # Display filtered transactions
     if not filtered_df.empty:
         # Format dates for display
-        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["datetime"]).dt.strftime('%Y-%m-%d %H:%M')
+        filtered_df["formatted_date"] = pd.to_datetime(filtered_df["date"]).dt.strftime('%Y-%m-%d %H:%M')
         
         # Determine columns to display
         display_df = filtered_df[["formatted_date", "type", "category", "amount", "currency", "description"]]
@@ -158,7 +158,7 @@ with st.expander("CSV Upload Format Instructions"):
     
     Your CSV file should include the following columns:
     
-    - `datetime` - Transaction date and time (YYYY-MM-DD HH:MM:SS format)
+    - `date` - Transaction date and time (YYYY-MM-DD HH:MM:SS format)
     - `amount` - Transaction amount (positive for income, negative for expenses)
     - `currency` - Currency code (e.g., KZT, USD)
     - `category` - Transaction category
@@ -169,7 +169,7 @@ with st.expander("CSV Upload Format Instructions"):
     
     #### Sample CSV Format:
     ```
-    datetime,amount,currency,category,type,description
+    date,amount,currency,category,type,description
     2023-05-01 14:30:00,50000,KZT,Salary,income,Monthly salary
     2023-05-02 12:15:00,-2500,KZT,Food,expense,Lunch
     ```
