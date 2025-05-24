@@ -292,4 +292,4 @@ if 'OPENAI_API_KEY' in st.secrets:
 else:
     # Local development fallback
     load_dotenv()
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY") 
