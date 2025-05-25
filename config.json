@@ -1,0 +1,16 @@
+{
+  "categories": {
+    "food": "Food & Dining",
+    "groceries": "Groceries",
+    "transport": "Transportation",
+    "entertainment": "Entertainment",
+    "utilities": "Utilities",
+    "rent": "Housing/Rent",
+    "shopping": "Shopping",
+    "health": "Healthcare",
+    "education": "Education",
+    "travel": "Travel",
+    "salary": "Income/Salary",
+    "other": "Other"
+  }
+} 

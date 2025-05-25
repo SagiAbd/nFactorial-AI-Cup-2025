@@ -6,6 +6,11 @@ import pandas as pd
 import plotly.express as px
 import os
 from datetime import date, timedelta
+import sys
+
+# Add parent directory to path to enable imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.currency_utils import convert_to_kzt, format_currency, CURRENCY_SYMBOLS
 
 st.set_page_config(
     page_title="Dashboard - FinSight",
@@ -63,7 +68,7 @@ if transactions.empty:
     sample_transactions = pd.DataFrame({
         "Date": ["2023-11-01", "2023-11-03", "2023-11-05", "2023-11-10", "2023-11-15"],
         "Description": ["Grocery Store", "Electricity Bill", "Restaurant", "Gas Station", "Salary"],
-        "Amount": ["- KZT 120.45", "- KZT 85.20", "- KZT 65.30", "- KZT 45.67", "+ KZT 1,500.00"],
+        "Amount": ["- ₸ 120.45", "- ₸ 85.20", "- ₸ 65.30", "- ₸ 45.67", "+ ₸ 1,500.00"],
         "Category": ["Groceries", "Utilities", "Dining", "Transportation", "Income"],
         "Type": ["Expense", "Expense", "Expense", "Expense", "Income"]
     })
@@ -76,6 +81,12 @@ else:
     if not transactions.empty:
         # Ensure date column is properly formatted
         transactions["date"] = pd.to_datetime(transactions["date"], format='%Y-%m-%d', errors='coerce')
+        
+        # Convert all amounts to KZT
+        transactions["amount_kzt"] = transactions.apply(
+            lambda row: convert_to_kzt(row["amount"], row["currency"]), 
+            axis=1
+        )
         
         # Filter data based on time period
         time_period = st.sidebar.selectbox(
@@ -115,19 +126,22 @@ else:
         if time_period != "Custom Range":
             filtered_transactions = transactions[transactions["date"] >= pd.Timestamp(start_date)]
         
-        # Calculate overview metrics
-        total_income = filtered_transactions[filtered_transactions["amount"] > 0]["amount"].sum()
-        total_expenses = abs(filtered_transactions[filtered_transactions["amount"] < 0]["amount"].sum())
+        # Calculate overview metrics using KZT values
+        total_income = filtered_transactions[filtered_transactions["amount_kzt"] > 0]["amount_kzt"].sum()
+        total_expenses = abs(filtered_transactions[filtered_transactions["amount_kzt"] < 0]["amount_kzt"].sum())
         net_flow = total_income - total_expenses
         
-        # Display metrics
+        # Display metrics with KZT symbol
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Income", f"{total_income:.2f}")
+            st.metric("Total Income", f"{CURRENCY_SYMBOLS['KZT']} {total_income:,.2f}")
         with col2:
-            st.metric("Total Expenses", f"{total_expenses:.2f}")
+            st.metric("Total Expenses", f"{CURRENCY_SYMBOLS['KZT']} {total_expenses:,.2f}")
         with col3:
-            st.metric("Net Cash Flow", f"{net_flow:.2f}", delta=f"{net_flow:.2f}")
+            delta_color = "normal" if net_flow >= 0 else "inverse"
+            st.metric("Net Cash Flow", f"{CURRENCY_SYMBOLS['KZT']} {net_flow:,.2f}", 
+                     delta=f"{CURRENCY_SYMBOLS['KZT']} {net_flow:,.2f}", 
+                     delta_color=delta_color)
         
         # Monthly trend analysis
         st.subheader("Monthly Cash Flow")
@@ -135,8 +149,8 @@ else:
         # Prepare data for monthly trend
         filtered_transactions["month"] = filtered_transactions["date"].dt.strftime("%b %Y")
         
-        monthly_income = filtered_transactions[filtered_transactions["amount"] > 0].groupby("month")["amount"].sum()
-        monthly_expenses = abs(filtered_transactions[filtered_transactions["amount"] < 0].groupby("month")["amount"].sum())
+        monthly_income = filtered_transactions[filtered_transactions["amount_kzt"] > 0].groupby("month")["amount_kzt"].sum()
+        monthly_expenses = abs(filtered_transactions[filtered_transactions["amount_kzt"] < 0].groupby("month")["amount_kzt"].sum())
         
         # Create dataframe for plotting
         months = sorted(filtered_transactions["month"].unique(), key=lambda x: pd.to_datetime(x, format="%b %Y"))
@@ -146,10 +160,10 @@ else:
         
         # Group by month and transaction type
         filtered_transactions["month"] = filtered_transactions["date"].dt.strftime("%b %Y")
-        monthly_summary = filtered_transactions.groupby(["month", "type"])["amount"].sum().reset_index()
+        monthly_summary = filtered_transactions.groupby(["month", "type"])["amount_kzt"].sum().reset_index()
         
         # Pivot to get income and expenses as columns
-        monthly_pivot = monthly_summary.pivot(index="month", columns="type", values="amount").reset_index()
+        monthly_pivot = monthly_summary.pivot(index="month", columns="type", values="amount_kzt").reset_index()
         monthly_pivot = monthly_pivot.fillna(0)
         
         # Ensure both income and expense columns exist
@@ -157,6 +171,9 @@ else:
             monthly_pivot["income"] = 0
         if "expense" not in monthly_pivot.columns:
             monthly_pivot["expense"] = 0
+            
+        # Make expense values positive for better visualization
+        monthly_pivot["expense"] = monthly_pivot["expense"].abs()
         
         # Create a bar chart
         fig = px.bar(
@@ -164,24 +181,37 @@ else:
             x="month",
             y=["income", "expense"],
             barmode="group",
-            labels={"value": "Amount", "month": "Month", "variable": "Type"},
+            labels={"value": f"Amount ({CURRENCY_SYMBOLS['KZT']})", "month": "Month", "variable": "Type"},
             color_discrete_map={"income": "green", "expense": "red"},
-            title="Monthly Income vs Expenses"
+            title=f"Monthly Income vs Expenses ({CURRENCY_SYMBOLS['KZT']})"
         )
+        
+        # Update y-axis to show KZT formatting
+        fig.update_layout(
+            yaxis=dict(
+                tickprefix=f"{CURRENCY_SYMBOLS['KZT']} ",
+                separatethousands=True
+            )
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
         
         # Top Spending Categories
         st.markdown("### Top Spending Categories")
-        expense_by_category = filtered_transactions[filtered_transactions["type"] == "expense"].groupby("category")["amount"].sum().reset_index()
-        expense_by_category = expense_by_category.sort_values("amount", ascending=False).head(5)
+        expense_by_category = filtered_transactions[filtered_transactions["type"] == "expense"].groupby("category")["amount_kzt"].sum().abs().reset_index()
+        expense_by_category = expense_by_category.sort_values("amount_kzt", ascending=False).head(5)
         
         if not expense_by_category.empty:
             fig = px.pie(
                 expense_by_category,
-                values="amount",
+                values="amount_kzt",
                 names="category",
-                title="Top Expense Categories",
+                title=f"Top Expense Categories ({CURRENCY_SYMBOLS['KZT']})",
                 hole=0.4
+            )
+            # Add KZT formatting to hover text
+            fig.update_traces(
+                hovertemplate='<b>%{label}</b><br>Amount: ' + CURRENCY_SYMBOLS['KZT'] + ' %{value:,.2f}<br>Percent: %{percent}'
             )
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -195,18 +225,30 @@ else:
             # Format for display
             display_df = recent_transactions.copy()
             
-            # Format amount with currency and color
-            def format_amount(row):
-                amount = row["amount"]
-                currency = row["currency"]
-                transaction_type = row["type"]
+            # Format amount with currency symbol and color
+            def format_amount_display(row):
+                # Format original amount with original currency
+                original_formatted = format_currency(
+                    row["amount"], 
+                    row["currency"], 
+                    include_symbol=True, 
+                    colorize=True, 
+                    transaction_type=row["type"]
+                )
                 
-                if transaction_type == "expense":
-                    return f"<span style='color:red'>-{currency} {abs(float(amount)):.2f}</span>"
-                else:  # income
-                    return f"<span style='color:green'>+{currency} {abs(float(amount)):.2f}</span>"
+                # If currency is not KZT, also show KZT equivalent
+                if row["currency"] != "KZT":
+                    kzt_formatted = format_currency(
+                        row["amount_kzt"], 
+                        "KZT", 
+                        include_symbol=True, 
+                        colorize=False
+                    )
+                    return f"{original_formatted}<br><small>({kzt_formatted})</small>"
+                
+                return original_formatted
             
-            display_df["formatted_amount"] = display_df.apply(format_amount, axis=1)
+            display_df["formatted_amount"] = display_df.apply(format_amount_display, axis=1)
             
             # Format date
             display_df["formatted_date"] = display_df["date"].dt.strftime("%Y-%m-%d")

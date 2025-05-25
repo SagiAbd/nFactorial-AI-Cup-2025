@@ -17,6 +17,7 @@ from core.data_manager import (
 from utils.budget_math import calculate_budget_progress
 from utils.charts import create_spending_trend_chart, create_category_distribution
 from agents.bank_statement_processor import BankStatementProcessor
+from utils.currency_utils import format_currency, CURRENCY_SYMBOLS
 
 
 def render_transaction_type_selector():
@@ -263,8 +264,11 @@ def render_currency_selector():
             is_selected = st.session_state.selected_currency == currency
             button_type = "primary" if is_selected else "secondary"
             
+            # Use currency symbol in button if available
+            currency_display = f"{CURRENCY_SYMBOLS.get(currency, '')} {currency}".strip()
+            
             if st.button(
-                currency, 
+                currency_display, 
                 key=f"currency_{currency}_{st.session_state.selected_type}", 
                 use_container_width=True,
                 type=button_type
@@ -365,15 +369,28 @@ def render_transaction_form(transaction_type):
         height=80
     )
     
-    # Display selected values
+    # Display selected values with currency symbol
     if st.session_state.selected_currency or st.session_state.selected_category:
-        st.info(f"💱 **Currency:** {st.session_state.selected_currency or 'Not selected'} | "
+        currency_display = st.session_state.selected_currency
+        if st.session_state.selected_currency in CURRENCY_SYMBOLS:
+            currency_display = f"{CURRENCY_SYMBOLS[st.session_state.selected_currency]} {st.session_state.selected_currency}"
+            
+        st.info(f"💱 **Currency:** {currency_display or 'Not selected'} | "
                f"📂 **Category:** {st.session_state.selected_category or 'Not selected'}")
     
     # Save button (only show when all required fields are filled)
     if (amount > 0 and 
         st.session_state.selected_currency and 
         st.session_state.selected_category):
+        
+        # Preview the amount with currency symbol
+        formatted_amount = format_currency(
+            amount, 
+            st.session_state.selected_currency, 
+            include_symbol=True
+        )
+        
+        st.write(f"**Preview:** {formatted_amount}")
         
         st.write("")  # Space
         col1, col2, col3 = st.columns([1, 1, 1])
@@ -401,8 +418,14 @@ def render_recent_transactions():
             
             # Create a more structured display
             for _, tx in recent.iterrows():
-                amount_color = "green" if tx['amount'] > 0 else "red"
-                amount_symbol = "+" if tx['amount'] > 0 else ""
+                # Format amount with currency symbol
+                formatted_amount = format_currency(
+                    tx['amount'], 
+                    tx['currency'], 
+                    include_symbol=True, 
+                    colorize=True, 
+                    transaction_type=tx['type']
+                )
                 
                 # Create columns for better layout
                 col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 1, 1])
@@ -410,7 +433,7 @@ def render_recent_transactions():
                 with col1:
                     st.write(f"**{pd.to_datetime(tx['date'], format='%Y-%m-%d', errors='coerce').strftime('%Y-%m-%d')}**")
                 with col2:
-                    st.markdown(f":{amount_color}[{amount_symbol}{tx['amount']:.2f} {tx['currency']}]")
+                    st.markdown(formatted_amount, unsafe_allow_html=True)
                 with col3:
                     st.write(f"🏷️ {tx['type'].title()}")
                 with col4:
@@ -436,23 +459,29 @@ def render_sidebar_summary():
         if summary["total_income"] > 0 or summary["total_expenses"] > 0:
             # Overall metrics
             st.subheader("💰 Overall Summary")
-            st.metric("Total Income", f"{summary['total_income']:.2f}")
-            st.metric("Total Expenses", f"{summary['total_expenses']:.2f}")
+            st.metric("Total Income", f"{CURRENCY_SYMBOLS['KZT']} {summary['total_income']:,.2f}")
+            st.metric("Total Expenses", f"{CURRENCY_SYMBOLS['KZT']} {summary['total_expenses']:,.2f}")
             
-            balance_delta = "normal" if summary['balance'] >= 0 else "inverse"
-            st.metric("Balance", f"{summary['balance']:.2f}", delta_color=balance_delta)
+            balance_delta = summary['balance'] if summary['balance'] >= 0 else summary['balance']
+            balance_color = "normal" if summary['balance'] >= 0 else "inverse"
+            st.metric(
+                "Balance", 
+                f"{CURRENCY_SYMBOLS['KZT']} {summary['balance']:,.2f}", 
+                delta=f"{CURRENCY_SYMBOLS['KZT']} {balance_delta:,.2f}", 
+                delta_color=balance_color
+            )
             
             # Monthly metrics
             st.subheader("📅 This Month")
-            st.metric("Monthly Income", f"{summary['monthly_income']:.2f}")
-            st.metric("Monthly Expenses", f"{summary['monthly_expenses']:.2f}")
+            st.metric("Monthly Income", f"{CURRENCY_SYMBOLS['KZT']} {summary['monthly_income']:,.2f}")
+            st.metric("Monthly Expenses", f"{CURRENCY_SYMBOLS['KZT']} {summary['monthly_expenses']:,.2f}")
             
             
             # Top spending categories
             if summary['top_categories']:
                 st.subheader("🔥 Top Spending")
                 for category, amount in list(summary['top_categories'].items())[:3]:
-                    st.write(f"• **{category}**: {amount:.2f}")
+                    st.write(f"• **{category}**: {CURRENCY_SYMBOLS['KZT']} {amount:,.2f}")
             
         else:
             st.info("💡 Start adding transactions to see your financial summaries!")

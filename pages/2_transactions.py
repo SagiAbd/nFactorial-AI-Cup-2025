@@ -4,6 +4,11 @@ FinSight - Transactions Page
 import streamlit as st
 import pandas as pd
 import os
+import sys
+
+# Add parent directory to path to enable imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.currency_utils import convert_to_kzt, format_currency, CURRENCY_SYMBOLS
 
 st.set_page_config(
     page_title="Transactions - FinSight",
@@ -76,6 +81,12 @@ if uploaded_file is not None:
 transactions = load_transactions()
 
 if not transactions.empty:
+    # Convert all amounts to KZT for analytics
+    transactions["amount_kzt"] = transactions.apply(
+        lambda row: convert_to_kzt(row["amount"], row["currency"]), 
+        axis=1
+    )
+    
     st.markdown("### Your Transactions")
     
     # Add filters
@@ -125,23 +136,59 @@ if not transactions.empty:
         # Format dates for display - Note: dates are now YYYY-MM-DD without time
         filtered_df["formatted_date"] = pd.to_datetime(filtered_df["date"], format='%Y-%m-%d', errors='coerce').dt.strftime('%Y-%m-%d')
         
-        # Determine columns to display
-        display_df = filtered_df[["formatted_date", "description", "amount", "currency", "type", "category"]]
-        
-        # Set column names and reorder
-        display_df.columns = ["Date", "Description", "Amount", "Currency", "Type", "Category"]
-        
-        # Style the dataframe
-        st.dataframe(
-            display_df.style.applymap(
-                lambda x: "color: green" if x == "income" else "color: red", 
-                subset=["Type"]
-            ),
-            use_container_width=True
+        # Format amount with currency symbol and KZT equivalent
+        filtered_df["formatted_amount"] = filtered_df.apply(
+            lambda row: format_currency(row["amount"], row["currency"], include_symbol=True, colorize=True, transaction_type=row["type"]), 
+            axis=1
         )
         
+        # Format KZT amount for display
+        filtered_df["amount_kzt_formatted"] = filtered_df.apply(
+            lambda row: format_currency(row["amount_kzt"], "KZT", include_symbol=True), 
+            axis=1
+        )
+        
+        # Display statistics in KZT
+        if len(filtered_df) > 0:
+            st.markdown("### Transaction Summary (in KZT)")
+            
+            total_income_kzt = filtered_df[filtered_df["amount_kzt"] > 0]["amount_kzt"].sum()
+            total_expense_kzt = abs(filtered_df[filtered_df["amount_kzt"] < 0]["amount_kzt"].sum())
+            net_flow_kzt = total_income_kzt - total_expense_kzt
+            
+            stat_col1, stat_col2, stat_col3 = st.columns(3)
+            
+            with stat_col1:
+                st.metric("Total Income", f"{CURRENCY_SYMBOLS['KZT']} {total_income_kzt:,.2f}")
+            
+            with stat_col2:
+                st.metric("Total Expenses", f"{CURRENCY_SYMBOLS['KZT']} {total_expense_kzt:,.2f}")
+            
+            with stat_col3:
+                delta_color = "normal" if net_flow_kzt >= 0 else "inverse"
+                st.metric("Net Cash Flow", f"{CURRENCY_SYMBOLS['KZT']} {net_flow_kzt:,.2f}", 
+                         delta=f"{CURRENCY_SYMBOLS['KZT']} {net_flow_kzt:,.2f}", 
+                         delta_color=delta_color)
+        
+        # Combine formatted amount with KZT equivalent for non-KZT transactions
+        def display_amount(row):
+            if row["currency"] != "KZT":
+                return f"{row['formatted_amount']}<br><small>({row['amount_kzt_formatted']})</small>"
+            return row["formatted_amount"]
+        
+        filtered_df["display_amount"] = filtered_df.apply(display_amount, axis=1)
+        
+        # Determine columns to display
+        display_df = filtered_df[["formatted_date", "description", "display_amount", "type", "category"]]
+        
+        # Set column names and reorder
+        display_df.columns = ["Date", "Description", "Amount", "Type", "Category"]
+        
+        # Display with HTML formatting
+        st.write(display_df.to_html(escape=False), unsafe_allow_html=True)
+        
         # Add download button
-        csv = filtered_df.to_csv(index=False).encode('utf-8')
+        csv = filtered_df[["date", "description", "amount", "currency", "type", "category", "amount_kzt"]].to_csv(index=False).encode('utf-8')
         st.download_button(
             "Download Filtered Data", 
             csv, 
@@ -156,7 +203,7 @@ else:
 
 # Display upload instructions
 with st.expander("CSV Upload Format Instructions"):
-    st.markdown("""
+    st.markdown(f"""
     ### Required Format for CSV Uploads
     
     Your CSV file should include the following columns:
@@ -164,7 +211,7 @@ with st.expander("CSV Upload Format Instructions"):
     - `date` - Transaction date (YYYY-MM-DD format)
     - `description` - Transaction description or notes
     - `amount` - Transaction amount (positive for income, negative for expenses)
-    - `currency` - Currency code (e.g., KZT, USD)
+    - `currency` - Currency code (e.g., {CURRENCY_SYMBOLS['KZT']} KZT, $ USD)
     - `type` - Transaction type ('income' or 'expense')
     - `category` - Transaction category
     
@@ -174,4 +221,6 @@ with st.expander("CSV Upload Format Instructions"):
     2023-05-01,Monthly salary,50000,KZT,income,Salary
     2023-05-02,Lunch,-2500,KZT,expense,Food
     ```
+    
+    > **Note:** All non-KZT currencies will be automatically converted to KZT ({CURRENCY_SYMBOLS['KZT']}) for analytics.
     """)

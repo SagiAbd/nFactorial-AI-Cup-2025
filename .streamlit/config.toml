@@ -1,5 +1,5 @@
 [theme]
-primaryColor = "#1E90FF"
+primaryColor = "#1E88E5"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F0F2F6"
 textColor = "#262730"
@@ -7,8 +7,30 @@ font = "sans serif"
 
 [server]
 port = 8501
-enableCORS = true
-enableXsrfProtection = true
+enableCORS = false
+enableXsrfProtection = false
 
 [browser]
-gatherUsageStats = false 
+serverAddress = "localhost"
+gatherUsageStats = false
+
+[runner]
+fastReruns = true
+
+[ui]
+hideTopBar = false
+hideSidebarNav = false
+
+[client]
+showErrorDetails = true
+toolbarMode = "auto"
+
+[global]
+developmentMode = false
+logLevel = "warning"
+
+[logger]
+level = "info"
+
+[feature]
+USE_ENHANCED_AGENT = true 

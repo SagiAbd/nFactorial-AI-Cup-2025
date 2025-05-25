@@ -4,6 +4,11 @@ import json
 import os
 from datetime import date, timedelta
 from dotenv import load_dotenv
+import sys
+
+# Add parent directory to path to enable imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.currency_utils import convert_to_kzt
 
 
 # Configuration
@@ -193,8 +198,20 @@ def save_transaction(transaction_date, amount, category, currency, transaction_t
         # Ensure data directory exists
         ensure_data_directory()
         
-        transactions = load_transactions()
-        print(f"Debug: Loaded existing transactions, count: {len(transactions)}")
+        # Check if file exists and load it, or create a new one if it doesn't
+        if os.path.exists(TRANSACTIONS_FILE):
+            try:
+                transactions = pd.read_csv(TRANSACTIONS_FILE)
+                print(f"Debug: Loaded existing transactions, count: {len(transactions)}")
+            except Exception as load_error:
+                print(f"Debug ERROR: Error loading transactions: {load_error}")
+                # Create new dataframe if loading failed
+                transactions = pd.DataFrame(columns=['date', 'description', 'amount', 'currency', 'type', 'category'])
+                print("Debug: Created new transactions DataFrame")
+        else:
+            # Create new dataframe
+            transactions = pd.DataFrame(columns=['date', 'description', 'amount', 'currency', 'type', 'category'])
+            print("Debug: Created new transactions DataFrame (file didn't exist)")
         
         # Format date as YYYY-MM-DD (without time)
         date_str = transaction_date.strftime('%Y-%m-%d')
@@ -209,15 +226,49 @@ def save_transaction(transaction_date, amount, category, currency, transaction_t
         }
         print(f"Debug: New transaction data: {new_transaction}")
         
+        # Add transaction ID if the column exists in the original DataFrame
+        if 'transaction_id' in transactions.columns:
+            # Generate a simple unique ID based on timestamp
+            import time
+            new_transaction['transaction_id'] = f"tx_{int(time.time()*1000)}"
+            print(f"Debug: Added transaction_id: {new_transaction['transaction_id']}")
+        
+        # Create a DataFrame for the new transaction
         new_df = pd.DataFrame([new_transaction])
+        
+        # Make sure column order matches
+        if not transactions.empty:
+            # Use only columns that exist in both DataFrames
+            common_columns = [col for col in transactions.columns if col in new_df.columns]
+            transactions = transactions[common_columns]
+            new_df = new_df[common_columns]
+        
+        # Concatenate with existing transactions
         transactions = pd.concat([transactions, new_df], ignore_index=True)
         print(f"Debug: Concatenated transactions, new count: {len(transactions)}")
         
         # Save to file
-        transactions.to_csv(TRANSACTIONS_FILE, index=False)
-        print(f"Debug: Saved transactions to {TRANSACTIONS_FILE}")
-        
-        return True
+        try:
+            transactions.to_csv(TRANSACTIONS_FILE, index=False)
+            print(f"Debug: Saved transactions to {TRANSACTIONS_FILE}")
+            
+            # Verify file was written correctly
+            if os.path.exists(TRANSACTIONS_FILE):
+                file_size = os.path.getsize(TRANSACTIONS_FILE)
+                print(f"Debug: File size after save: {file_size} bytes")
+                if file_size > 0:
+                    print("Debug: File was written successfully")
+                else:
+                    print("Debug ERROR: File exists but is empty")
+            else:
+                print("Debug ERROR: File doesn't exist after save operation")
+            
+            return True
+        except Exception as save_error:
+            print(f"Debug ERROR: Error saving to CSV: {save_error}")
+            if hasattr(st, 'error'):
+                st.error(f"Error saving to CSV: {save_error}")
+            return False
     except Exception as e:
         print(f"Debug ERROR: Error saving transaction: {e}")
         if hasattr(st, 'error'):
@@ -254,20 +305,26 @@ def get_financial_summary():
             "recent_trend": "No data"
         }
     
+    # Convert all amounts to KZT for consistent reporting
+    transactions['amount_kzt'] = transactions.apply(
+        lambda row: convert_to_kzt(row["amount"], row["currency"]), 
+        axis=1
+    )
+    
     # Current month data
     current_month = pd.Timestamp(date.today().replace(day=1))
     monthly_data = transactions[transactions['date'] >= current_month]
     
-    # Calculate totals
-    total_income = transactions[transactions['amount'] > 0]['amount'].sum()
-    total_expenses = abs(transactions[transactions['amount'] < 0]['amount'].sum())
+    # Calculate totals using KZT amounts
+    total_income = transactions[transactions['amount_kzt'] > 0]['amount_kzt'].sum()
+    total_expenses = abs(transactions[transactions['amount_kzt'] < 0]['amount_kzt'].sum())
     balance = total_income - total_expenses
     
-    monthly_income = monthly_data[monthly_data['amount'] > 0]['amount'].sum()
-    monthly_expenses = abs(monthly_data[monthly_data['amount'] < 0]['amount'].sum())
+    monthly_income = monthly_data[monthly_data['amount_kzt'] > 0]['amount_kzt'].sum()
+    monthly_expenses = abs(monthly_data[monthly_data['amount_kzt'] < 0]['amount_kzt'].sum())
     
-    # Top spending categories
-    expense_by_category = transactions[transactions['amount'] < 0].groupby('category')['amount'].sum().abs().sort_values(ascending=False)
+    # Top spending categories in KZT
+    expense_by_category = transactions[transactions['amount_kzt'] < 0].groupby('category')['amount_kzt'].sum().abs().sort_values(ascending=False)
     top_categories = expense_by_category.head(3).to_dict()
     
     # Recent trend (last 7 days vs previous 7 days)
@@ -276,14 +333,14 @@ def get_financial_summary():
     
     recent_expenses = abs(transactions[
         (transactions['date'] >= last_week) & 
-        (transactions['amount'] < 0)
-    ]['amount'].sum())
+        (transactions['amount_kzt'] < 0)
+    ]['amount_kzt'].sum())
     
     prev_expenses = abs(transactions[
         (transactions['date'] >= prev_week) & 
         (transactions['date'] < last_week) & 
-        (transactions['amount'] < 0)
-    ]['amount'].sum())
+        (transactions['amount_kzt'] < 0)
+    ]['amount_kzt'].sum())
     
     if prev_expenses > 0:
         trend_pct = ((recent_expenses - prev_expenses) / prev_expenses) * 100
@@ -314,14 +371,20 @@ def get_category_spending(category, days=30):
     if transactions.empty:
         return 0
     
+    # Convert all amounts to KZT for consistent reporting
+    transactions['amount_kzt'] = transactions.apply(
+        lambda row: convert_to_kzt(row["amount"], row["currency"]), 
+        axis=1
+    )
+    
     # Calculate cutoff date
     cutoff_date = pd.Timestamp(date.today() - timedelta(days=days))
     
-    # Filter transactions
+    # Filter transactions and use KZT amounts
     category_spending = abs(transactions[
         (transactions['category'] == category) &
         (transactions['date'] >= cutoff_date)
-    ]['amount'].sum())
+    ]['amount_kzt'].sum())
     
     return category_spending
 
@@ -333,12 +396,18 @@ def get_monthly_comparison():
     if transactions.empty:
         return pd.DataFrame()
     
+    # Convert all amounts to KZT for consistent reporting
+    transactions['amount_kzt'] = transactions.apply(
+        lambda row: convert_to_kzt(row["amount"], row["currency"]), 
+        axis=1
+    )
+    
     # Create month periods for grouping
     transactions['month'] = transactions['date'].dt.to_period('M')
     
-    # Group by month
+    # Group by month using KZT amounts
     monthly_summary = transactions.groupby('month').agg({
-        'amount': lambda x: {
+        'amount_kzt': lambda x: {
             'income': x[x > 0].sum(),
             'expenses': abs(x[x < 0].sum()),
             'balance': x.sum()

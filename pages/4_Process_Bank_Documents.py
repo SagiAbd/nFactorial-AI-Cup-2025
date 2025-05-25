@@ -1,43 +1,33 @@
+"""
+FinSight - Bank Document Processing Page
+Process and categorize bank statements and receipts
+"""
 import streamlit as st
 import pandas as pd
 import os
 import sys
 import tempfile
-from datetime import date, datetime
+from datetime import datetime
 import logging
 
-from core.data_manager import (
-    initialize_session_state, 
-    save_transaction, 
-    load_transactions
-)
-from app.components.ui_components import (
-    render_transaction_type_selector,
-    render_transaction_form,
-    render_recent_transactions,
-    render_sidebar_summary
-)
-from agents.chat_assistant import render_chat_interface
-from utils.transaction_processor import TransactionProcessor
+# Add parent directory to path to enable imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from utils.transaction_processor import TransactionProcessor
+from core.data_manager import save_transaction
+
+st.set_page_config(
+    page_title="Process Bank Documents - FinSight",
+    page_icon="📄",
+    layout="wide"
+)
+
+st.title("Process Bank Documents 📄")
+st.subheader("Upload and process your bank statements and receipts")
 
 # Path for data directory
 DATA_DIR = "data"
 TRANSACTIONS_FILE = os.path.join(DATA_DIR, "transactions.csv")
-
-def reset_form_state():
-    """Reset form-related session state variables"""
-    st.session_state.selected_type = None
-    st.session_state.selected_currency = None
-    st.session_state.selected_category = None
-    st.session_state.form_submitted = False
-
-def reset_save_state():
-    """Reset save-related session state variables"""
-    st.session_state.save_attempted = False
 
 def save_uploaded_file(uploaded_file):
     """Save an uploaded file to a temporary file and return the path"""
@@ -143,6 +133,7 @@ def save_transactions_to_file(transactions_df):
         return 0, 0
     
     # Log transaction count before saving
+    logger = logging.getLogger(__name__)
     logger.info(f"Attempting to save {len(transactions_df)} transactions")
     
     # Create data directory if it doesn't exist
@@ -324,230 +315,166 @@ def save_transactions_to_file(transactions_df):
     
     return saved_count, error_count
 
-def render_document_processing():
-    """Render the document processing section"""
-    st.markdown("## 📄 Process Bank Documents")
-    st.write("Upload your bank statements or receipts to extract and categorize transactions.")
-    st.write("Supported formats: CSV, PDF, XLSX, JPG, PNG")
-    
-    # File uploader
-    uploaded_files = st.file_uploader(
-        "Upload your bank statements or receipts", 
-        accept_multiple_files=True,
-        type=["csv", "pdf", "xlsx", "xls", "jpg", "jpeg", "png"],
-        key="document_uploader"
+# Main app
+st.write("Upload your bank statements or receipts to extract and categorize transactions.")
+st.write("Supported formats: CSV, PDF, XLSX, JPG, PNG")
+
+# File uploader
+uploaded_files = st.file_uploader(
+    "Upload your bank statements or receipts", 
+    accept_multiple_files=True,
+    type=["csv", "pdf", "xlsx", "xls", "jpg", "jpeg", "png"]
+)
+
+# Add processing options
+st.write("### Processing Options")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    auto_save = st.checkbox(
+        "Auto-save transactions",
+        value=False,
+        help="Automatically save transactions to your data file"
     )
-    
-    # Add processing options
-    st.write("### Processing Options")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        auto_save = st.checkbox(
-            "Auto-save transactions",
-            value=False,
-            help="Automatically save transactions to your data file"
-        )
-    
-    # Add a flag to track if save has been attempted
-    if 'save_attempted' not in st.session_state:
+
+# Add a flag to track if save has been attempted
+if 'save_attempted' not in st.session_state:
+    st.session_state.save_attempted = False
+
+# Add a reset function for save state
+def reset_save_state():
+    st.session_state.save_attempted = False
+
+# Process button
+if uploaded_files:
+    if st.button("Process Documents", type="primary"):
+        # Reset save state when processing new documents
         st.session_state.save_attempted = False
-    
-    # Process button
-    if uploaded_files:
-        if st.button("Process Documents", type="primary", key="process_button"):
-            # Reset save state when processing new documents
-            st.session_state.save_attempted = False
+        
+        with st.spinner("Processing your documents..."):
+            # Get API key from secrets
+            api_key = None
+            if 'OPENAI_API_KEY' in st.secrets:
+                api_key = st.secrets['OPENAI_API_KEY']
             
-            with st.spinner("Processing your documents..."):
-                # Get API key from secrets
-                api_key = None
-                if 'OPENAI_API_KEY' in st.secrets:
-                    api_key = st.secrets['OPENAI_API_KEY']
+            # Process files
+            processed_df = process_files(uploaded_files, api_key)
+            
+            if processed_df is not None and not processed_df.empty:
+                # Show a preview of the processed transactions
+                st.success(f"📁 Successfully processed {len(uploaded_files)} document(s)")
                 
-                # Process files
-                processed_df = process_files(uploaded_files, api_key)
+                # Check for unclear data
+                unclear_mask = (
+                    processed_df['description'].astype(str).str.contains('[UNCLEAR]', case=False) |
+                    processed_df['date'].astype(str).str.contains('[UNCLEAR]', case=False) |
+                    processed_df['amount'].astype(str).str.contains('[UNCLEAR]', case=False)
+                )
                 
-                if processed_df is not None and not processed_df.empty:
-                    # Show a preview of the processed transactions
-                    st.success(f"📁 Successfully processed {len(uploaded_files)} document(s)")
+                unclear_count = unclear_mask.sum()
+                
+                if unclear_count > 0:
+                    st.warning(f"⚠️ Found {unclear_count} transactions with unclear data")
                     
-                    # Check for unclear data
-                    unclear_mask = (
-                        processed_df['description'].astype(str).str.contains('[UNCLEAR]', case=False) |
-                        processed_df['date'].astype(str).str.contains('[UNCLEAR]', case=False) |
-                        processed_df['amount'].astype(str).str.contains('[UNCLEAR]', case=False)
+                    # Display unclear transactions
+                    with st.expander("View Transactions with Unclear Data", expanded=True):
+                        st.dataframe(processed_df[unclear_mask])
+                        
+                        st.info("These transactions need manual review. You can edit them directly in the transactions page.")
+                
+                # Display all transactions
+                with st.expander("Preview All Processed Transactions", expanded=True):
+                    st.dataframe(processed_df)
+                    
+                    # Download button
+                    csv = processed_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "Download Processed Data", 
+                        csv, 
+                        "processed_transactions.csv", 
+                        "text/csv", 
+                        key="download-csv"
                     )
-                    
-                    unclear_count = unclear_mask.sum()
-                    
-                    if unclear_count > 0:
-                        st.warning(f"⚠️ Found {unclear_count} transactions with unclear data")
+                
+                # Add a clear message about saving options
+                st.markdown("""
+                ### Save Your Transactions
+                You have two options to save these transactions to your database:
+                
+                1. **Auto-save**: Enable the checkbox at the top of the page before processing
+                2. **Manual save**: Use the 'Save All Transactions' button below
+                """)
+                
+                # Auto-save or manual save
+                if auto_save and not st.session_state.save_attempted:
+                    with st.spinner("Saving transactions..."):
+                        st.session_state.save_attempted = True
+                        success_count, error_count = save_transactions_to_file(processed_df)
                         
-                        # Display unclear transactions
-                        with st.expander("View Transactions with Unclear Data", expanded=True):
-                            st.dataframe(processed_df[unclear_mask])
+                        if success_count > 0:
+                            st.success(f"✅ Successfully saved {success_count} transactions!")
+                            if error_count > 0:
+                                st.warning(f"⚠️ Failed to save {error_count} transactions (unclear data)")
+                        else:
+                            st.error("❌ Failed to save any transactions")
+                else:
+                    # Manual save buttons
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Always show the save button, but disable it if already attempted
+                        button_label = "Save All Transactions"
+                        if st.session_state.save_attempted:
+                            button_label = "Save All Transactions (Already Saved)"
                             
-                            st.info("These transactions need manual review. You can edit them directly in the transactions page.")
-                    
-                    # Display all transactions
-                    with st.expander("Preview All Processed Transactions", expanded=True):
-                        st.dataframe(processed_df)
-                        
-                        # Download button
-                        csv = processed_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "Download Processed Data", 
-                            csv, 
-                            "processed_transactions.csv", 
-                            "text/csv", 
-                            key="download-csv"
-                        )
-                    
-                    # Add a clear message about saving options
-                    st.markdown("""
-                    ### Save Your Transactions
-                    You have two options to save these transactions to your database:
-                    
-                    1. **Auto-save**: Enable the checkbox at the top of the page before processing
-                    2. **Manual save**: Use the 'Save All Transactions' button below
-                    """)
-                    
-                    # Auto-save or manual save
-                    if auto_save and not st.session_state.save_attempted:
-                        with st.spinner("Saving transactions..."):
-                            st.session_state.save_attempted = True
-                            success_count, error_count = save_transactions_to_file(processed_df)
-                            
-                            if success_count > 0:
-                                st.success(f"✅ Successfully saved {success_count} transactions!")
-                                if error_count > 0:
-                                    st.warning(f"⚠️ Failed to save {error_count} transactions (unclear data)")
-                            else:
-                                st.error("❌ Failed to save any transactions")
-                    else:
-                        # Manual save buttons
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            # Always show the save button, but disable it if already attempted
-                            button_label = "Save All Transactions"
-                            if st.session_state.save_attempted:
-                                button_label = "Save All Transactions (Already Saved)"
+                        if st.button(button_label, type="primary", disabled=st.session_state.save_attempted):
+                            with st.spinner("Saving transactions..."):
+                                st.session_state.save_attempted = True
+                                success_count, error_count = save_transactions_to_file(processed_df)
                                 
-                            if st.button(button_label, type="primary", disabled=st.session_state.save_attempted, key="save_button"):
-                                with st.spinner("Saving transactions..."):
-                                    st.session_state.save_attempted = True
-                                    success_count, error_count = save_transactions_to_file(processed_df)
-                                    
-                                    if success_count > 0:
-                                        st.success(f"✅ Successfully saved {success_count} transactions!")
-                                        if error_count > 0:
-                                            st.warning(f"⚠️ Failed to save {error_count} transactions (unclear data)")
-                                    else:
-                                        st.error("❌ Failed to save any transactions")
-                        
-                        with col2:
-                            # Make the reset button more visible
-                            if st.session_state.save_attempted:
-                                st.info("Click 'Reset' to enable saving again")
-                                if st.button("Reset", 
-                                            help="Click this to reset the save state and enable saving again",
-                                            type="secondary",
-                                            key="reset_button"):
-                                    reset_save_state()
-                                    st.experimental_rerun()
-                else:
-                    st.error("❌ Failed to process the uploaded documents. Please check the file format.")
-    
-    # Display help text
-    with st.expander("How to use this feature"):
-        st.markdown("""
-        ### How to Process Bank Documents
-        
-        This feature allows you to automatically extract transactions from various bank documents:
-        
-        1. **Upload Files**: Upload your bank statements, receipts, or check images.
-        2. **Process**: Click the "Process Documents" button to extract transactions.
-        3. **Review**: Check the extracted transactions for accuracy.
-        4. **Save**: Save the transactions to your transactions database.
-        
-        ### Handling Unclear Data
-        
-        If the system can't clearly read some information, it will mark it with [UNCLEAR].
-        You may need to manually edit these transactions after saving.
-        
-        ### Supported File Types
-        
-        - **CSV**: Spreadsheet files from your bank's export feature
-        - **PDF**: Bank statements, digital receipts
-        - **XLSX/XLS**: Excel spreadsheets
-        - **JPG/PNG**: Photos of receipts or checks
-        
-        For best results, ensure your documents are clear and readable.
-        """)
+                                if success_count > 0:
+                                    st.success(f"✅ Successfully saved {success_count} transactions!")
+                                    if error_count > 0:
+                                        st.warning(f"⚠️ Failed to save {error_count} transactions (unclear data)")
+                                else:
+                                    st.error("❌ Failed to save any transactions")
+                    
+                    with col2:
+                        # Make the reset button more visible
+                        if st.session_state.save_attempted:
+                            st.info("Click 'Reset' to enable saving again")
+                            if st.button("Reset", 
+                                        help="Click this to reset the save state and enable saving again",
+                                        type="secondary"):
+                                reset_save_state()
+                                st.experimental_rerun()
+            else:
+                st.error("❌ Failed to process the uploaded documents. Please check the file format.")
 
-def main():
-    """Main application function"""
-    # Page configuration
-    st.set_page_config(
-        page_title="FinSight - AI-Powered Finance Tracker",
-        page_icon="💰",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+# Display help text
+with st.expander("How to use this feature"):
+    st.markdown("""
+    ### How to Process Bank Documents
     
-    # Initialize session state
-    initialize_session_state()
+    This feature allows you to automatically extract transactions from various bank documents:
     
-    # Header
-    st.title("💰 FinSight AI")
-    st.markdown("### Your AI-Powered Financial Assistant")
+    1. **Upload Files**: Upload your bank statements, receipts, or check images.
+    2. **Process**: Click the "Process Documents" button to extract transactions.
+    3. **Review**: Check the extracted transactions for accuracy.
+    4. **Save**: Save the transactions to your transactions database.
     
-    # Tabs for different sections
-    tab1, tab2, tab3 = st.tabs(["Add Transaction", "Process Documents", "Chat Assistant"])
+    ### Handling Unclear Data
     
-    with tab1:
-        # Transaction type selection
-        render_transaction_type_selector()
-        
-        # Render appropriate form based on selection
-        if st.session_state.selected_type in ["expense", "income"]:
-            # Handle form submission
-            transaction_data = render_transaction_form(st.session_state.selected_type)
-            
-            if transaction_data:
-                success = save_transaction(**transaction_data)
-                if success:
-                    st.success(f"✅ {transaction_data['transaction_type'].title()} saved successfully!")
-                    reset_form_state()
-                    st.rerun()
-                else:
-                    st.error("❌ Failed to save transaction!")
-            
-            # Close form button
-            if st.button("❌ Close Form", type="secondary"):
-                reset_form_state()
-                st.rerun()
-        else:
-            st.info("👆 Select a transaction type above to get started!")
-        
-        # Recent transactions
-        st.markdown("---")
-        render_recent_transactions()
+    If the system can't clearly read some information, it will mark it with [UNCLEAR].
+    You may need to manually edit these transactions after saving.
     
-    with tab2:
-        # Document processing section
-        render_document_processing()
+    ### Supported File Types
     
-    with tab3:
-        # Chat interface
-        render_chat_interface()
+    - **CSV**: Spreadsheet files from your bank's export feature
+    - **PDF**: Bank statements, digital receipts
+    - **XLSX/XLS**: Excel spreadsheets
+    - **JPG/PNG**: Photos of receipts or checks
     
-    # Sidebar summary
-    render_sidebar_summary()
-
-
-if __name__ == "__main__":
-    main() 
+    For best results, ensure your documents are clear and readable.
+    """) 

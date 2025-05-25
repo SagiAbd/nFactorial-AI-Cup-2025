@@ -1,16 +1,44 @@
 date,description,amount,currency,type,category,transaction_id
-2023-11-01 00:00:00,Grocery Store,-120.45,USD,expense,Groceries,e6807021-7f3c-4788-8df5-c3eda710d725
-2023-11-03 00:00:00,Electricity Bill,-85.2,USD,expense,Utilities,c94fe395-484c-4105-8fd7-1e5f48673c97
-2023-11-05 00:00:00,Restaurant Dinner,-65.3,USD,expense,Dining,3ad89c3f-ab88-4c09-85b7-7af20ca0ec6b
-2023-11-07 00:00:00,Gas Station,-45.67,USD,expense,Transportation,24616161-823c-4369-baa2-9bd79acd9424
-2023-11-10 00:00:00,Online Shopping,-95.99,USD,expense,Shopping,842f67c4-6abb-4e77-8b4e-bcd06214e7ed
-2023-11-15 00:00:00,Salary Deposit,2500.0,USD,income,Income,05291511-3757-4de3-adad-be0acf8594b5
-2023-11-18 00:00:00,Coffee Shop,-4.25,USD,expense,Dining,635d47c2-58a6-4c9f-9bff-2507d47359e5
-2023-11-20 00:00:00,Pharmacy,-32.5,USD,expense,Health,c6b1b053-0f7c-4352-8772-accd124962d0
-2023-11-25 00:00:00,Movie Tickets,-24.0,USD,expense,Entertainment,44e20172-0547-47b0-be60-a1cc1d39b309
-2023-11-28 00:00:00,Mobile Phone Bill,-55.0,USD,expense,Utilities,a5bdb83f-3383-4dc5-949f-d973268ed4ff
-2025-05-23 00:00:00,Daily,-100.0,KZT,expense,Food,aa1e7c35-06e7-43b7-be50-ba743a52ba12
-2025-05-24 00:00:00,,-100.0,KZT,expense,hello,6a52ac5f-8d39-42c3-bb87-475933605a8d
-2025-05-24 00:00:00,,-0.01,KZT,expense,Food,7cb3d7a0-0973-431b-9f4c-d9693542a01d
-2025-05-24 00:00:00,PDF Import Placeholder,0.0,KZT,income,Uncategorized,9933e84f-77d8-4748-bef9-e9d610754a9b
-2025-05-24,Debug test transaction,1000.0,KZT,income,Test,e5ca052b-cecb-4bd2-a033-b46129fdf45d
+2025-05-25,Test transaction,100.0,KZT,income,Test,tx_1748121127472
+2025-05-24,Yandex.Go. Taxi,-1370.0,KZT,expense,Transport,tx_1748121175118
+2025-05-23,Yandex.Go. Taxi,-1170.0,KZT,expense,Transport,tx_1748121175121
+2025-05-23,Ip Zhylkaydarov. Medicine,-1800.0,KZT,expense,Health,tx_1748121175125
+2025-05-23,Ip Zhylkaydarov. Medicine,-1800.0,KZT,expense,Health,tx_1748121175128
+2025-05-23,Yandex.Go. Taxi,-1450.0,KZT,expense,Transport,tx_1748121175130
+2025-05-22,Ar-Nur Minimarket. Grocery,-930.0,KZT,expense,Food,tx_1748121175131
+2025-05-21,Ip Mamedov Rafik Ismailo. Grocery,-1290.0,KZT,expense,Food,tx_1748121175134
+2025-05-21,Refund. Purchase canceled,424.0,KZT,income,Refund,tx_1748121175136
+2025-05-21,Transfer,-2569.0,KZT,expense,Other,tx_1748121175139
+2025-05-21,Transfer,-26000.0,KZT,expense,Other,tx_1748121175141
+2025-05-21,Transfer,-6630.0,KZT,expense,Other,tx_1748121175145
+2025-05-20,KOPILKA. Between own accounts,17000.0,KZT,income,Other,tx_1748121175148
+2025-05-20,Transfer,-4700.0,KZT,expense,Other,tx_1748121175150
+2025-05-20,Transfer from card to card,-9400.0,KZT,expense,Other,tx_1748121175151
+2025-05-20,Replenishment,47000.0,KZT,income,Other,tx_1748121175154
+2025-05-20,Replenishment. Internal bank,20000.0,KZT,income,Other,tx_1748121175156
+2025-05-20,Transfer,-20000.0,KZT,expense,Other,tx_1748121175158
+2025-05-20,"Too ""Tamerlan Bi"". Cafe & restaurant",-1690.0,KZT,expense,Food,tx_1748121175160
+2025-05-19,Ip Sultamuratova. Grocery,-1304.0,KZT,expense,Food,tx_1748121175162
+2025-05-19,Spotify Ab. Entertainment,-2.49,KZT,expense,Entertainment,tx_1748121175163
+2025-05-17,Transfer,-1000.0,KZT,expense,Other,tx_1748121175165
+2025-05-17,Arbuz Internet Shop. Grocery,-168.0,KZT,expense,Food,tx_1748121175167
+2025-05-17,Yandex.Go. Taxi,-900.0,KZT,expense,Transport,tx_1748121175171
+2025-05-17,Transfer from card to card,-8100.0,KZT,expense,Other,tx_1748121175175
+2025-05-16,"Too ""En Games"". Medicine",-1800.0,KZT,expense,Health,tx_1748121175177
+2025-05-16,"Too ""En Games"". Medicine",-3100.0,KZT,expense,Health,tx_1748121175179
+2025-05-16,Replenishment. Internal bank,53600.0,KZT,income,Other,tx_1748121175181
+2025-05-08,Ar-Nur Minimarket. Grocery,-340.0,KZT,expense,Food,tx_1748121175183
+2025-05-08,Ip Armina M.K. Grocery,-725.0,KZT,expense,Food,tx_1748121175185
+2025-05-08,Ip Zhylkaydarov. Medicine,-1500.0,KZT,expense,Health,tx_1748121175188
+2025-05-07,Yandex.Go. Taxi,-1260.0,KZT,expense,Transport,tx_1748121175191
+2025-05-07,Ip Www. Medicine,-1800.0,KZT,expense,Health,tx_1748121175193
+2025-05-06,"Too ""Espresso Day Mega"". Cafe & restaurant",-990.0,KZT,expense,Food,tx_1748121175194
+2025-05-06,Transfer from card to card,-4590.0,KZT,expense,Other,tx_1748121175195
+2025-05-06,Replenishment. Internal bank,7000.0,KZT,income,Other,tx_1748121175197
+2025-05-06,Yandex.Go. Taxi,-2700.0,KZT,expense,Transport,tx_1748121175198
+2025-05-04,Ar-Nur Minimarket. Grocery,-340.0,KZT,expense,Food,tx_1748121175199
+2025-05-03,Transfer,-7000.0,KZT,expense,Other,tx_1748121175200
+2025-05-03,Yandex.Go. Taxi,-1940.0,KZT,expense,Transport,tx_1748121175201
+2025-05-03,,,KZT,expense,,tx_1748121175203
+2023-11-17,"Store # 00236, Purchase of beverages",-16.04,KZT,expense,Food,tx_1748121758899
+2025-05-25,,-1000.0,KZT,expense,Food,tx_1748122309213
