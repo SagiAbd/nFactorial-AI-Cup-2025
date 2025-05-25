@@ -226,6 +226,22 @@ def save_transaction(transaction_date, amount, category, currency, transaction_t
         }
         print(f"Debug: New transaction data: {new_transaction}")
         
+        # Check for duplicate transactions before adding
+        # Create a transaction signature for comparison
+        transaction_signature = f"{date_str}_{description}_{abs(amount):.2f}_{transaction_type}_{category}"
+        
+        # Check if a transaction with the same signature but possibly different currency exists
+        duplicate_exists = False
+        for _, row in transactions.iterrows():
+            row_signature = f"{row['date']}_{row['description']}_{abs(float(row['amount'])):.2f}_{row['type']}_{row['category']}"
+            if row_signature == transaction_signature:
+                duplicate_exists = True
+                print(f"Debug: Duplicate transaction detected. Skipping.")
+                break
+        
+        if duplicate_exists:
+            return True  # Return success but don't add the duplicate
+        
         # Add transaction ID if the column exists in the original DataFrame
         if 'transaction_id' in transactions.columns:
             # Generate a simple unique ID based on timestamp

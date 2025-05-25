@@ -503,7 +503,17 @@ class TransactionProcessor:
             else:
                 # Process regular image file
                 text = self._extract_text_from_image(file_path)
-                return self._extract_transactions_with_ai(text)
+                extracted_df = self._extract_transactions_with_ai(text)
+                
+                # Ensure we don't have multiple entries with different currencies
+                # Standardize to a single currency if needed
+                if not extracted_df.empty and 'currency' in extracted_df.columns:
+                    # Use the first currency as the standard for all transactions in this batch
+                    standard_currency = extracted_df.iloc[0]['currency']
+                    extracted_df['currency'] = standard_currency
+                    logger.info(f"Standardized all transactions from image to {standard_currency}")
+                
+                return extracted_df
         
         except Exception as e:
             logger.error(f"Error processing image file: {e}")
@@ -978,41 +988,31 @@ class TransactionProcessor:
         return categories[0]
 
     def _process_document_with_openai(self, file_path: str, file_content: bytes) -> pd.DataFrame:
-        """Process document using OpenAI's image/document understanding capabilities.
-        This is a fallback method when specialized libraries aren't available."""
-        logger.info(f"Processing document with OpenAI: {file_path}")
-        
+        """Process document using OpenAI's image/document understanding capabilities."""
         try:
-            # Check if it's a PDF
+            # For PDF, convert to text first using PyMuPDF if available
             if file_path.lower().endswith('.pdf'):
-                logger.info("Converting PDF to images for OpenAI processing")
                 try:
-                    # Try to use PyMuPDF if available (even if other enhanced processing libs aren't)
-                    import fitz
-                    import tempfile
-                    from PIL import Image
+                    import fitz  # PyMuPDF
                     
-                    with tempfile.TemporaryDirectory() as temp_dir:
-                        doc = fitz.open(file_path)
-                        all_text = ""
-                        
-                        # Process each page
-                        for page_num in range(len(doc)):
-                            page = doc.load_page(page_num)
-                            pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))
-                            image_file = f"{temp_dir}/page_{page_num+1}.png"
-                            pix.save(image_file)
-                            
-                            # Process each page image
-                            with open(image_file, "rb") as image_file:
-                                page_image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                                
-                            # Get page text using Vision API
-                            page_text = self._extract_text_with_vision(page_image_data, "image/png")
-                            all_text += f"Page {page_num+1}:\n{page_text}\n\n"
+                    # Extract text from PDF
+                    doc = fitz.open(file_path)
+                    text_content = ""
                     
-                    # Extract transactions from all text
-                    return self._extract_transactions_with_ai(all_text)
+                    for page_num in range(len(doc)):
+                        page = doc.load_page(page_num)
+                        text_content += page.get_text() + "\n\n"
+                    
+                    # Extract transactions from text
+                    extracted_df = self._extract_transactions_with_ai(text_content)
+                    
+                    # Ensure consistent currency
+                    if not extracted_df.empty and 'currency' in extracted_df.columns:
+                        standard_currency = extracted_df.iloc[0]['currency']
+                        extracted_df['currency'] = standard_currency
+                        logger.info(f"Standardized all transactions from PDF to {standard_currency}")
+                    
+                    return extracted_df
                     
                 except ImportError:
                     logger.warning("PyMuPDF not available for PDF conversion. Using basic text extraction.")
@@ -1028,7 +1028,15 @@ class TransactionProcessor:
                                     all_text += page_text + "\n\n"
                         
                         # Extract transactions from text
-                        return self._extract_transactions_with_ai(all_text)
+                        extracted_df = self._extract_transactions_with_ai(all_text)
+                        
+                        # Ensure consistent currency
+                        if not extracted_df.empty and 'currency' in extracted_df.columns:
+                            standard_currency = extracted_df.iloc[0]['currency'] 
+                            extracted_df['currency'] = standard_currency
+                            logger.info(f"Standardized all transactions from PDF to {standard_currency}")
+                        
+                        return extracted_df
                     except Exception as pdf_error:
                         logger.error(f"Error extracting text from PDF: {pdf_error}")
                         return pd.DataFrame()
@@ -1047,7 +1055,15 @@ class TransactionProcessor:
                 extracted_text = self._extract_text_with_vision(file_data, mime_type)
                 
                 # Extract transactions from text
-                return self._extract_transactions_with_ai(extracted_text)
+                extracted_df = self._extract_transactions_with_ai(extracted_text)
+                
+                # Ensure consistent currency
+                if not extracted_df.empty and 'currency' in extracted_df.columns:
+                    standard_currency = extracted_df.iloc[0]['currency'] 
+                    extracted_df['currency'] = standard_currency
+                    logger.info(f"Standardized all transactions from image to {standard_currency}")
+                
+                return extracted_df
             
             # For other file types, try to extract as text
             return self._extract_transactions_with_ai("No text could be extracted from this file format.")
@@ -1133,6 +1149,20 @@ class TransactionProcessor:
         
         logger.info(f"Processed {len(file_paths)} files: {results['success_count']} successful, {results['error_count']} errors")
         logger.info(f"Extracted {results['transaction_count']} transactions in total")
+        
+        # Standardize currencies if we have multiple transactions with different currencies
+        if results["transactions"]:
+            # Convert to DataFrame for easier processing
+            transactions_df = pd.DataFrame(results["transactions"])
+            
+            if 'currency' in transactions_df.columns and len(transactions_df['currency'].unique()) > 1:
+                # Use the most common currency as the standard
+                most_common_currency = transactions_df['currency'].mode()[0]
+                logger.info(f"Standardizing all {len(transactions_df)} transactions to use {most_common_currency}")
+                
+                # Update all transactions to use the most common currency
+                for transaction in results["transactions"]:
+                    transaction["currency"] = most_common_currency
         
         return results
 

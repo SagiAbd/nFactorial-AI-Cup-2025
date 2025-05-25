@@ -52,89 +52,64 @@ def save_uploaded_file(uploaded_file):
         return None
 
 def process_files(uploaded_files, api_key=None):
-    """Process uploaded files using TransactionProcessor"""
+    """Process uploaded files and extract transactions"""
     if not uploaded_files:
-        return None
+        return pd.DataFrame()
     
-    # Initialize transaction processor
+    # Create a processor instance
     try:
         processor = TransactionProcessor(api_key=api_key)
+    except ValueError as e:
+        st.error(f"Error initializing processor: {e}")
+        return pd.DataFrame()
+    
+    # Save files to disk
+    saved_files = []
+    for file in uploaded_files:
+        saved_path = save_uploaded_file(file)
+        if saved_path:
+            saved_files.append(saved_path)
+    
+    if not saved_files:
+        st.error("No files were successfully saved for processing.")
+        return pd.DataFrame()
+    
+    try:
+        # Process the files
+        logger.info(f"Processing {len(saved_files)} files")
+        result = processor.process_files(saved_files)
+        
+        # Check if we got any transactions
+        if result["error_count"] > 0 and result["transaction_count"] == 0:
+            st.error(f"Error processing files: {', '.join(result.get('errors', ['Unknown error']))}")
+            return pd.DataFrame()
+        
+        # Check if we got any transactions
+        if not result["transactions"]:
+            st.warning("No transactions were found in the uploaded files.")
+            return pd.DataFrame()
+        
+        # Convert to DataFrame
+        transactions_df = pd.DataFrame(result["transactions"])
+        
+        # Set standardized currency to avoid duplicates
+        if not transactions_df.empty and 'currency' in transactions_df.columns:
+            # Find the most common currency in the dataset
+            most_common_currency = transactions_df['currency'].mode()[0]
+            logger.info(f"Setting all currencies to {most_common_currency} to avoid duplicates")
+            transactions_df['currency'] = most_common_currency
+        
+        # Display summary
+        st.success(f"✅ Successfully extracted {len(transactions_df)} transactions from {len(saved_files)} files!")
+        
+        return transactions_df
+    
     except Exception as e:
-        st.error(f"Error initializing transaction processor: {e}")
-        return None
-    
-    all_transactions = []
-    
-    # Process each file
-    for uploaded_file in uploaded_files:
-        st.write(f"Processing {uploaded_file.name}...")
-        
-        # Save uploaded file to temporary file
-        temp_file_path = save_uploaded_file(uploaded_file)
-        
-        if not temp_file_path:
-            st.error(f"Failed to save {uploaded_file.name}")
-            continue
-        
-        try:
-            # Process the file
-            result = processor.process_file(temp_file_path)
-            
-            # Delete temporary file
-            os.unlink(temp_file_path)
-            
-            if not result["success"]:
-                st.error(f"Error processing {uploaded_file.name}: {result.get('error', 'Unknown error')}")
-                continue
-                
-            transactions = result["transactions"]
-            
-            if not transactions:
-                st.warning(f"No transactions found in {uploaded_file.name}")
-                continue
-            
-            # Convert transactions to DataFrame if they're not already
-            if not isinstance(transactions, pd.DataFrame):
-                transactions_df = pd.DataFrame(transactions)
-            else:
-                transactions_df = transactions
-                
-            st.success(f"Found {len(transactions_df)} transactions in {uploaded_file.name}")
-            
-            # Add source information
-            transactions_df["source"] = uploaded_file.name
-            
-            all_transactions.append(transactions_df)
-            
-        except Exception as e:
-            st.error(f"Error processing {uploaded_file.name}: {e}")
-            # Delete temporary file
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-    
-    if not all_transactions:
-        return None
-    
-    # Combine all transactions
-    combined_df = pd.concat(all_transactions, ignore_index=True)
-    
-    # Ensure all required columns are present
-    required_columns = ['date', 'description', 'amount', 'type', 'category', 'currency']
-    for col in required_columns:
-        if col not in combined_df.columns:
-            if col == 'currency':
-                # Default currency
-                combined_df[col] = 'KZT'
-            else:
-                combined_df[col] = None
-    
-    # Clean up date column
-    combined_df['date'] = pd.to_datetime(combined_df['date'], errors='coerce').dt.strftime('%Y-%m-%d')
-    
-    # Convert unclear amounts to None
-    combined_df['amount'] = pd.to_numeric(combined_df['amount'], errors='coerce')
-    
-    return combined_df
+        st.error(f"Error processing files: {e}")
+        logger.error(f"Error processing files: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return pd.DataFrame()
 
 def save_transactions_to_file(transactions_df):
     """Save extracted transactions to the transactions.csv file"""
